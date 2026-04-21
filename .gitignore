@@ -1,0 +1,15 @@
+.DS_Store
+*.pyc
+bin/
+obj/
+cpp/
+*.hxproj
+*.hxml
+.haxelib/
+export/
+*.log
+*.tmp
+.vscode/
+.gemini/
+GEMINI.md
+
