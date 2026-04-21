@@ -211,10 +211,6 @@ Users of this library should be aware of the following security implications:
 - **Inter-Process Communication (IPC):** Features such as Shared Memory, Named Semaphores, and Unix Domain Sockets allow data to cross process boundaries. These must be implemented with care to prevent race conditions, unauthorized access, or memory corruption.
 - **Input Validation:** When using system functions that interact with the filesystem or network, always validate inputs to avoid injection-style vulnerabilities or accidental system instability.
 
-## License
-
-MIT
-
 ---
 
 *This library, its architectural structure, test suite, and development environments were architected by a human. Google Gemini was used throughout the process for code generation and implementation under the human architect's complete control (AI-assisted development).*
