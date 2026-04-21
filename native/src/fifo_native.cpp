@@ -122,6 +122,7 @@ int fd_get_numeric(size_t handle) {
 #include <poll.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <cstring>
 
 extern "C" {
 

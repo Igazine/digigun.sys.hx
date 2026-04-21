@@ -9,9 +9,9 @@ import haxe.Int64;
  */
 #if cpp
 class NativeHandle {
-    public var value(default, null):cpp.SizeT;
+    public var value(default, null):Float;
 
-    public function new(val:cpp.SizeT) {
+    public function new(val:Float) {
         this.value = val;
     }
 
@@ -34,14 +34,14 @@ class NativeHandle {
      * Explicit conversion to a raw pointer.
      */
     public inline function toVoidPtr():cpp.RawPointer<cpp.Void> {
-        return untyped __cpp__("(void*){0}", value);
+        return untyped __cpp__("(void*)(size_t){0}", value);
     }
 
     /**
      * Explicit creation from a raw pointer.
      */
     public static function fromVoidPtr(ptr:cpp.RawPointer<cpp.Void>):NativeHandle {
-        return new NativeHandle(untyped __cpp__("(size_t){0}", ptr));
+        return new NativeHandle(untyped __cpp__("(double)(size_t){0}", ptr));
     }
 }
 #else

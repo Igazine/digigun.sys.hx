@@ -45,6 +45,7 @@ class Main {
         testDirectIO();
         testFifo();
         testUnixDomainSocket();
+        testReadAll();
         testNonBlockingFifo();
         testSelector();
         testSignal();
@@ -52,6 +53,33 @@ class Main {
         testNetwork();
         
         trace("All architecture and implementation checks complete.");
+    }
+
+    static function testReadAll() {
+        trace("--- Testing readAll() ---");
+        var socketPath = "haxe_readall_test_sock";
+        try { if (FileSystem.exists(socketPath)) FileSystem.deleteFile(socketPath); } catch(e:Dynamic) {}
+        
+        var server = UnixDomainSocket.create();
+        server.bind(socketPath);
+        server.listen(1);
+        
+        var client = UnixDomainSocket.create();
+        
+        // This is a bit tricky to test synchronously without threads, 
+        // but we can try non-blocking readAll on an empty socket.
+        client.connect(socketPath);
+        client.setBlocking(false);
+        
+        var data = client.readAll();
+        trace('  Empty readAll length: ${data.length}');
+        
+        // In a real test we'd send data from another process/thread.
+        // For now, we just verify it doesn't crash and handles "no data" correctly.
+        
+        server.close();
+        client.close();
+        try { if (FileSystem.exists(socketPath)) FileSystem.deleteFile(socketPath); } catch(e:Dynamic) {}
     }
 
     static function testSignal() {

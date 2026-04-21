@@ -82,6 +82,31 @@ class UnixDomainSocket implements ISocket {
         #end
     }
 
+    /**
+     * Reads all available data from the socket.
+     * In blocking mode, this will read until EOF.
+     * In non-blocking mode, this will read all currently available data.
+     */
+    public function readAll():Bytes {
+        var buffer = new haxe.io.BytesBuffer();
+        var temp = Bytes.alloc(4096);
+        try {
+            while (true) {
+                var res = read(temp, temp.length);
+                if (res > 0) {
+                    buffer.addBytes(temp, 0, res);
+                } else if (res == 0) {
+                    break; // EOF
+                } else {
+                    break; // Error
+                }
+            }
+        } catch (e:haxe.io.Error) {
+            if (e != haxe.io.Error.Blocked) throw e;
+        }
+        return buffer.getBytes();
+    }
+
     public function write(buffer:Bytes, length:Int):Int {
         #if cpp
         if (!this.handle.isValid) return -1;

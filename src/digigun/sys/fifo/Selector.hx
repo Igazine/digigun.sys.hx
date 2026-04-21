@@ -7,11 +7,12 @@ import digigun.sys.NativeHandle;
 /**
  * High-level multiplexer to wait for I/O events on multiple FIFOs or Sockets.
  */
+@:cppFileCode("#include <fifo_native.h>")
 class Selector {
     public static function select(read:Array<ICommunicator>, write:Array<ICommunicator>, timeout:Float):{read:Array<ICommunicator>, write:Array<ICommunicator>} {
         #if cpp
-        var all = new Map<cpp.SizeT, ICommunicator>();
-        var handles = new Array<cpp.SizeT>();
+        var all = new Map<haxe.Int64, ICommunicator>();
+        var handles = new Array<haxe.Int64>();
         var events = new Array<Int>();
         var revents = new Array<Int>();
 
@@ -19,10 +20,17 @@ class Selector {
             for (c in read) {
                 var h = c.getHandle();
                 if (!h.isValid) continue;
-                all.set(h.value, c);
-                var idx = handles.indexOf(h.value);
+                var hVal:haxe.Int64 = cast h.value;
+                all.set(hVal, c);
+                var idx = -1;
+                for (i in 0...handles.length) {
+                    if (handles[i] == hVal) {
+                        idx = i;
+                        break;
+                    }
+                }
                 if (idx == -1) {
-                    handles.push(h.value);
+                    handles.push(hVal);
                     events.push(0x0001); // POLLIN
                 } else {
                     events[idx] |= 0x0001;
@@ -34,10 +42,17 @@ class Selector {
             for (c in write) {
                 var h = c.getHandle();
                 if (!h.isValid) continue;
-                all.set(h.value, c);
-                var idx = handles.indexOf(h.value);
+                var hVal:haxe.Int64 = cast h.value;
+                all.set(hVal, c);
+                var idx = -1;
+                for (i in 0...handles.length) {
+                    if (handles[i] == hVal) {
+                        idx = i;
+                        break;
+                    }
+                }
                 if (idx == -1) {
-                    handles.push(h.value);
+                    handles.push(hVal);
                     events.push(0x0004); // POLLOUT
                 } else {
                     events[idx] |= 0x0004;
@@ -54,7 +69,7 @@ class Selector {
         var nativeRevents = NativeArray.address(revents, 0);
 
         var timeoutMs = timeout < 0 ? -1 : Std.int(timeout * 1000);
-        var res = Native.fd_poll(cast nativeHandles, cast nativeEvents, cast nativeRevents, handles.length, timeoutMs);
+        var res:Int = untyped __cpp__("fd_poll((size_t*)(void*){0}, (int*)(void*){1}, (int*)(void*){2}, {3}, {4})", nativeHandles, nativeEvents, nativeRevents, handles.length, timeoutMs);
 
         var readyRead = new Array<ICommunicator>();
         var readyWrite = new Array<ICommunicator>();

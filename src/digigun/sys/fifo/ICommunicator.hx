@@ -15,6 +15,12 @@ interface ICommunicator {
     function read(buffer:Bytes, length:Int):Int;
 
     /**
+     * Reads all available data from the communicator.
+     * @return The bytes read.
+     */
+    function readAll():Bytes;
+
+    /**
      * Writes `length` bytes from the `buffer` to the communicator.
      * @param buffer The buffer containing data to write.
      * @param length The number of bytes to write.
