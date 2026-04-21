@@ -1,6 +1,6 @@
 # digigun.sys.hx
 
-System extension library for Haxe (CPP target) to extend Haxe with system functions that are not available in the standard library.
+Zero-dependency system extension library for Haxe (CPP target) to extend Haxe with system functions that are not available in the standard library.
 
 ## Table of Contents
 
