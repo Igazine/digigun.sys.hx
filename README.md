@@ -2,6 +2,18 @@
 
 System extension library for Haxe (CPP target) to extend Haxe with system functions that are not available in the standard library.
 
+## Table of Contents
+
+- [Features](#features)
+- [Status Legend](#status-legend)
+- [Roadmap](#roadmap)
+- [Installation](#installation)
+- [Target Operating Systems](#target-operating-systems)
+- [Contributions & Bug Reports](#contributions--bug-reports)
+- [Usage Examples](#usage-examples)
+- [Safety & Security Considerations](#safety--security-considerations)
+- [License](#license)
+
 ## Features
 
 - **FIFO (Named Pipes)**: Create and communicate through local named pipes.
