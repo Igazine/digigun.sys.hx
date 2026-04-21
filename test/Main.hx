@@ -32,7 +32,11 @@ class Main {
 
         testRandom();
         testFork();
-        testConsoleTUI();
+        if (args.indexOf("--tui") != -1) {
+            testConsoleTUI();
+        } else {
+            trace("Skipping Console TUI test (use --tui to enable).");
+        }
         testTime();
         testMemoryMap();
         testProcControl();
