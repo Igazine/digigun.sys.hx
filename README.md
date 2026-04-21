@@ -203,6 +203,14 @@ ProcControl.setAffinity(0xF);
 ProcControl.setPriority(AboveNormal);
 ```
 
+## Safety & Security Considerations
+
+Users of this library should be aware of the following security implications:
+
+- **Elevated Privileges:** Several system-level functions (e.g., setting CPU affinity, adjusting process priorities, or locking memory into RAM) may require root/administrator privileges depending on the operating system and security policies.
+- **Inter-Process Communication (IPC):** Features such as Shared Memory, Named Semaphores, and Unix Domain Sockets allow data to cross process boundaries. These must be implemented with care to prevent race conditions, unauthorized access, or memory corruption.
+- **Input Validation:** When using system functions that interact with the filesystem or network, always validate inputs to avoid injection-style vulnerabilities or accidental system instability.
+
 ## License
 
 MIT
