@@ -93,6 +93,22 @@ System extension library for Haxe (CPP target) to extend Haxe with system functi
 haxelib git digigun.sys.hx https://github.com/igazine/digigun.sys.hx
 ```
 
+## Target Operating Systems
+
+The library is primarily designed for desktop and server operating systems, including:
+- **macOS** (Apple Silicon and Intel)
+- **Linux** (including single-board computers like Raspberry Pi)
+- **Windows** (x64)
+
+### Platform Support & Development
+All features are primarily developed and tested on **POSIX-compliant systems (macOS and Linux)**. While full compatibility with **Windows** is a core requirement and actively maintained, it serves as a secondary development platform.
+
+Mobile operating systems (such as **Android and iOS**) might be partially supported depending on the specific module and the underlying kernel features available; however, full compatibility is not guaranteed.
+
+## Contributions & Bug Reports
+
+If you encounter any misbehavior, bugs, or platform-specific issues, please **open a GitHub issue**. Feedback and pull requests are welcome to help improve cross-platform stability.
+
 ## Usage Examples
 
 ### FIFO (Named Pipe)
