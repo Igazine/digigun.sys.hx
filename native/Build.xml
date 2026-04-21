@@ -17,6 +17,7 @@
         <file name="../../native/src/rt_native.cpp"/>
         <file name="../../native/src/io_native.cpp"/>
         <file name="../../native/src/random_native.cpp"/>
+        <file name="../../native/src/auth_native.cpp"/>
     </files>
 
     <files id="haxe">
@@ -31,6 +32,7 @@
         <lib name="shlwapi.lib" if="windows"/>
         <lib name="psapi.lib" if="windows"/>
         <lib name="bcrypt.lib" if="windows"/>
+        <lib name="netapi32.lib" if="windows"/>
         <lib name="-lrt" if="linux"/>
         <linkerflag value="-framework" if="macos"/>
         <linkerflag value="CoreServices" if="macos"/>

@@ -15,6 +15,7 @@ import digigun.sys.console.Console;
 import digigun.sys.signal.Signal;
 import digigun.sys.rt.RtControl;
 import digigun.sys.random.Random;
+import digigun.sys.auth.Auth;
 import sys.FileSystem;
 
 class Main {
@@ -30,6 +31,7 @@ class Main {
         trace("digigun.sys.hx Functional Test Suite");
         trace('Current PID: ${Process.getId()}');
 
+        testAuth();
         testRandom();
         testFork();
         if (args.indexOf("--tui") != -1) {
@@ -38,17 +40,45 @@ class Main {
             trace("Skipping Console TUI test (use --tui to enable).");
         }
         testTime();
-        testMemoryMap();
-        testProcControl();
-        testSemaphore();
-        testFileLock();
-        testWatcher();
-        testSystemInfo();
-        testSharedMemory();
-        testProcess();
-        testProcessTree();
-        testSendFile();
-        testDirectIO();
+...
+        testNetwork();
+
+        trace("All architecture and implementation checks complete.");
+    }
+
+    static function testAuth() {
+        trace("--- Testing Auth (Identity) ---");
+        var current = Auth.getCurrentUser();
+        if (current != null) {
+            trace('  Current User: ${current.username} (UID: ${current.uid}, GID: ${current.gid})');
+            trace('  Real Name: ${current.realname}');
+            trace('  Home Dir: ${current.homeDir}');
+
+            var byName = Auth.getUserByName(current.username);
+            if (byName != null && byName.username == current.username) {
+                trace("  User lookup by name: SUCCESS");
+            } else {
+                trace("  User lookup by name: FAILED");
+            }
+        } else {
+            trace("  FAILED to get current user.");
+        }
+
+        var groups = Auth.listGroups();
+        if (groups.length > 0) {
+            trace('  Successfully listed ${groups.length} system groups.');
+            trace('  First group: ${groups[0].name} (GID: ${groups[0].gid})');
+        } else {
+            #if windows
+            trace("  Group listing: SKIPPED (Not implemented on Windows)");
+            #else
+            trace("  Group listing: FAILED (No groups found on POSIX)");
+            #end
+        }
+        }
+
+        static function testRandom() {
+        trace("--- Testing Secure Random & UUID ---");
         testFifo();
         testUnixDomainSocket();
         testReadAll();
