@@ -76,6 +76,10 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] `mlockall()` - Lock process memory into RAM ✅
 - [x] `trap()` - Native signal handling (SIGUSR1, SIGUSR2, etc.) ✅
 
+### Secure Random & Entropy (`digigun.sys.random`) ✅
+- [x] `getBytes()` - Cryptographically secure random bytes ✅
+- [x] `uuid()` - Version 4 UUID generation ✅
+
 ### Network Control (`digigun.sys.network`) ✅
 - [x] `getArpTable()` - Retrieve system ARP table ✅
 - [x] `bindToInterface()` - Bind socket to specific NIC ✅

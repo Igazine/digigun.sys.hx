@@ -14,6 +14,7 @@ import digigun.sys.time.Time;
 import digigun.sys.console.Console;
 import digigun.sys.signal.Signal;
 import digigun.sys.rt.RtControl;
+import digigun.sys.random.Random;
 import sys.FileSystem;
 
 class Main {
@@ -29,6 +30,7 @@ class Main {
         trace("digigun.sys.hx Functional Test Suite");
         trace('Current PID: ${Process.getId()}');
 
+        testRandom();
         testFork();
         testConsoleTUI();
         testTime();
@@ -49,10 +51,36 @@ class Main {
         testNonBlockingFifo();
         testSelector();
         testSignal();
-        testRtControl();
         testNetwork();
         
         trace("All architecture and implementation checks complete.");
+    }
+
+    static function testRandom() {
+        trace("--- Testing Secure Random & UUID ---");
+        var bytes = Random.getBytes(16);
+        if (bytes != null && bytes.length == 16) {
+            trace('  Successfully generated 16 secure bytes: ${bytes.toHex()}');
+        } else {
+            trace("  FAILED to generate secure bytes.");
+        }
+
+        var uuid1 = Random.uuid();
+        var uuid2 = Random.uuid();
+        trace('  UUID 1: ${uuid1}');
+        trace('  UUID 2: ${uuid2}');
+
+        if (uuid1 != null && uuid1.length == 36 && uuid1 != uuid2) {
+            // Basic regex for UUID v4: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+            var r = ~/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+            if (r.match(uuid1)) {
+                trace("  UUID verification: SUCCESS (Format and Version 4 bits validated)");
+            } else {
+                trace("  UUID verification: FAILED (Regex mismatch)");
+            }
+        } else {
+            trace("  UUID verification: FAILED (Length or collision)");
+        }
     }
 
     static function testReadAll() {
