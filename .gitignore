@@ -13,3 +13,4 @@ export/
 .gemini/
 GEMINI.md
 
+*.code-workspace
