@@ -113,10 +113,6 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [ ] `setXAttr()` - Set extended file attribute ⏳
 - [ ] `listXAttrs()` - List extended file attributes ⏳
 
-### Dynamic Symbol Loading (`digigun.sys.dl`) ⏳
-- [ ] `open()` - Load shared library ⏳
-- [ ] `getSymbol()` - Resolve native symbol ⏳
-
 > **Note for Linux:** Unprivileged ping requires the `net.ipv4.ping_group_range` sysctl to be set. To enable for all users: `sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"`.
 
 ## Installation
