@@ -14,6 +14,8 @@ import digigun.sys.time.Time;
 import digigun.sys.console.Console;
 import digigun.sys.signal.Signal;
 import digigun.sys.rt.RtControl;
+import digigun.sys.random.Random;
+import digigun.sys.auth.Auth;
 import sys.FileSystem;
 
 class Main {
@@ -29,30 +31,108 @@ class Main {
         trace("digigun.sys.hx Functional Test Suite");
         trace('Current PID: ${Process.getId()}');
 
-        testFork();
-        testConsoleTUI();
-        testTime();
-        testMemoryMap();
-        testProcControl();
-        testSemaphore();
-        testFileLock();
-        testWatcher();
+        // Basic Info & Time
         testSystemInfo();
-        testSharedMemory();
+        testTime();
+
+        // Identity
+        testAuth();
+
+        // Security
+        testRandom();
+
+        // Process & Control
         testProcess();
         testProcessTree();
-        testSendFile();
-        testDirectIO();
-        testFifo();
-        testUnixDomainSocket();
-        testReadAll();
-        testNonBlockingFifo();
-        testSelector();
+        testProcControl();
+        testFork();
         testSignal();
         testRtControl();
-        testNetwork();
+
+        // File System & I/O
+        testFileLock();
+        testMemoryMap();
+        testWatcher();
+        testDirectIO();
         
+        // IPC & Sockets
+        testFifo();
+        testUnixDomainSocket();
+        testNonBlockingFifo();
+        testReadAll();
+        testSelector();
+        testSharedMemory();
+        testSemaphore();
+
+        // Network
+        testNetwork();
+        testSendFile();
+
+        if (args.indexOf("--tui") != -1) {
+            testConsoleTUI();
+        } else {
+            trace("Skipping Console TUI test (use --tui to enable).");
+        }
+
         trace("All architecture and implementation checks complete.");
+    }
+
+    static function testAuth() {
+        trace("--- Testing Auth (Identity) ---");
+        var current = Auth.getCurrentUser();
+        if (current != null) {
+            trace('  Current User: ${current.username} (UID: ${current.uid}, GID: ${current.gid})');
+            trace('  Real Name: ${current.realname}');
+            trace('  Home Dir: ${current.homeDir}');
+
+            var byName = Auth.getUserByName(current.username);
+            if (byName != null && byName.username == current.username) {
+                trace("  User lookup by name: SUCCESS");
+            } else {
+                trace("  User lookup by name: FAILED");
+            }
+        } else {
+            trace("  FAILED to get current user.");
+        }
+
+        var groups = Auth.getGroups();
+        if (groups.length > 0) {
+            trace('  Successfully listed ${groups.length} system groups.');
+            trace('  First group: ${groups[0].name} (GID: ${groups[0].gid})');
+        } else {
+            #if windows
+            trace("  Group listing: SKIPPED (Not implemented on Windows)");
+            #else
+            trace("  Group listing: FAILED (No groups found on POSIX)");
+            #end
+        }
+    }
+
+    static function testRandom() {
+        trace("--- Testing Secure Random & UUID ---");
+        var bytes = Random.getBytes(16);
+        if (bytes != null && bytes.length == 16) {
+            trace('  Successfully generated 16 secure bytes: ${bytes.toHex()}');
+        } else {
+            trace("  FAILED to generate secure bytes.");
+        }
+
+        var uuid1 = Random.uuid();
+        var uuid2 = Random.uuid();
+        trace('  UUID 1: ${uuid1}');
+        trace('  UUID 2: ${uuid2}');
+
+        if (uuid1 != null && uuid1.length == 36 && uuid1 != uuid2) {
+            // Basic regex for UUID v4: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+            var r = ~/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+            if (r.match(uuid1)) {
+                trace("  UUID verification: SUCCESS (Format and Version 4 bits validated)");
+            } else {
+                trace("  UUID verification: FAILED (Regex mismatch)");
+            }
+        } else {
+            trace("  UUID verification: FAILED (Length or collision)");
+        }
     }
 
     static function testReadAll() {
