@@ -108,10 +108,10 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] `writeBlock()` - Fast character block writing ✅
 - [x] `useAlternateBuffer()` - Switch to alternate screen ✅
 
-### Extended File System Attributes (`digigun.sys.fs` expansion) 🚧
-- [ ] `getXAttr()` - Get extended file attribute ⏳
-- [ ] `setXAttr()` - Set extended file attribute ⏳
-- [ ] `listXAttrs()` - List extended file attributes ⏳
+### Extended File System Attributes (`digigun.sys.fs` expansion) ✅
+- [x] `getXAttr()` - Get extended file attribute ✅
+- [x] `setXAttr()` - Set extended file attribute ✅
+- [x] `listXAttrs()` - List extended file attributes ✅
 
 > **Note for Linux:** Unprivileged ping requires the `net.ipv4.ping_group_range` sysctl to be set. To enable for all users: `sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"`.
 
