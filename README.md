@@ -128,7 +128,7 @@ haxelib git digigun.sys.hx https://github.com/igazine/digigun.sys.hx
 The library is primarily designed for desktop and server operating systems, including:
 - **macOS** (Apple Silicon and Intel)
 - **Linux** (including single-board computers like Raspberry Pi)
-- **Windows** (x64)
+- **Windows** (x64 and ARM64)
 
 ### Platform Support & Development
 All features are primarily developed and tested on **POSIX-compliant systems (macOS and Linux)**. While full compatibility with **Windows** is a core requirement and actively maintained, it serves as a secondary development platform.
