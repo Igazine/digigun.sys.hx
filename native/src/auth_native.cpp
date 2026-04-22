@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <cstring>
+#include <stdlib.h>
 
 #ifdef _WIN32
     #ifndef WIN32_LEAN_AND_MEAN
@@ -10,6 +11,12 @@
     #include <windows.h>
     #include <lmcons.h>
     #include <sddl.h>
+    #include <shlobj.h>
+    #define SECURITY_WIN32
+    #include <security.h>
+    #pragma comment(lib, "secur32.lib")
+    #pragma comment(lib, "advapi32.lib")
+    #pragma comment(lib, "userenv.lib")
 #else
     #include <unistd.h>
     #include <pwd.h>
@@ -19,7 +26,7 @@
 
 // Helper to duplicate strings safely for Haxe consumption
 static const char* safe_strdup(const char* str) {
-    if (!str) return "";
+    if (!str) return (const char*)malloc(1); // Return empty string on null
     size_t len = strlen(str);
     char* res = (char*)malloc(len + 1);
     if (res) {
@@ -34,12 +41,41 @@ extern "C" {
 static struct NativeUserInfo* win32_fill_user(const char* name) {
     struct NativeUserInfo* info = (struct NativeUserInfo*)malloc(sizeof(struct NativeUserInfo));
     memset(info, 0, sizeof(struct NativeUserInfo));
+    info->uid = -1;
+    info->gid = -1;
     info->username = safe_strdup(name);
-    
-    // Windows home directory equivalent (simplified for now)
-    char path[MAX_PATH];
-    if (GetEnvironmentVariableA("USERPROFILE", path, MAX_PATH)) {
-        info->home_dir = safe_strdup(path);
+    info->realname = safe_strdup("");
+    info->home_dir = safe_strdup("");
+    info->shell = safe_strdup("");
+    info->next = NULL;
+
+    // Try to get Full Name
+    char fullName[256];
+    ULONG nameSize = sizeof(fullName);
+    if (GetUserNameExA(NameDisplay, fullName, &nameSize)) {
+        if (info->realname) free((void*)info->realname);
+        info->realname = safe_strdup(fullName);
+    }
+
+    // Try to get Home Directory
+    HANDLE hToken = NULL;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+        char path[MAX_PATH];
+        DWORD pathSize = MAX_PATH;
+        if (GetUserProfileDirectoryA(hToken, path, &pathSize)) {
+            if (info->home_dir) free((void*)info->home_dir);
+            info->home_dir = safe_strdup(path);
+        }
+        CloseHandle(hToken);
+    }
+
+    // Fallback for home dir
+    if (strlen(info->home_dir) == 0) {
+        char path[MAX_PATH];
+        if (GetEnvironmentVariableA("USERPROFILE", path, MAX_PATH)) {
+            if (info->home_dir) free((void*)info->home_dir);
+            info->home_dir = safe_strdup(path);
+        }
     }
     
     return info;
@@ -88,10 +124,10 @@ struct NativeUserInfo* auth_get_current_user() {
 
 void auth_free_user(struct NativeUserInfo* user) {
     if (!user) return;
-    free((void*)user->username);
-    free((void*)user->realname);
-    free((void*)user->home_dir);
-    free((void*)user->shell);
+    if (user->username) free((void*)user->username);
+    if (user->realname) free((void*)user->realname);
+    if (user->home_dir) free((void*)user->home_dir);
+    if (user->shell) free((void*)user->shell);
     free(user);
 }
 
@@ -136,7 +172,7 @@ struct NativeGroupInfo* auth_get_groups() {
 void auth_free_groups(struct NativeGroupInfo* groups) {
     while (groups) {
         struct NativeGroupInfo* next = groups->next;
-        free((void*)groups->name);
+        if (groups->name) free((void*)groups->name);
         free(groups);
         groups = next;
     }

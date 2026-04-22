@@ -2,17 +2,31 @@ package digigun.sys.auth;
 
 import cpp.Pointer;
 
+/**
+ * User information record.
+ */
 typedef UserInfo = {
+    /** User ID (POSIX only, -1 on Windows). */
     var uid:Int;
+    /** Group ID (POSIX only, -1 on Windows). */
     var gid:Int;
+    /** Login name. */
     var username:String;
+    /** Real name or GECOS field. */
     var realname:String;
+    /** Path to home directory. */
     var homeDir:String;
+    /** Path to login shell (POSIX only). */
     var shell:String;
 }
 
+/**
+ * Group information record.
+ */
 typedef GroupInfo = {
+    /** Group ID (POSIX only, -1 on Windows). */
     var gid:Int;
+    /** Group name. */
     var name:String;
 }
 
@@ -22,6 +36,7 @@ typedef GroupInfo = {
 class Auth {
     /**
      * Retrieves information about the current user.
+     * @return UserInfo object or null on failure.
      */
     public static function getCurrentUser():UserInfo {
         #if cpp
@@ -37,6 +52,8 @@ class Auth {
 
     /**
      * Retrieves information about a user by their UID (POSIX only).
+     * @param uid The user ID to look up.
+     * @return UserInfo object or null if not found.
      */
     public static function getUserByUid(uid:Int):UserInfo {
         #if cpp
@@ -51,7 +68,23 @@ class Auth {
     }
 
     /**
+     * Alias for getUserByUid (POSIX) or getUserByName (generic).
+     * @param id Either a UID (Int) or a username (String).
+     * @return UserInfo object or null if not found.
+     */
+    public static function getUser(id:Dynamic):UserInfo {
+        if (Std.isOfType(id, Int)) {
+            return getUserByUid(cast id);
+        } else if (Std.isOfType(id, String)) {
+            return getUserByName(cast id);
+        }
+        return null;
+    }
+
+    /**
      * Retrieves information about a user by their username.
+     * @param name The username to look up.
+     * @return UserInfo object or null if not found.
      */
     public static function getUserByName(name:String):UserInfo {
         #if cpp
@@ -67,6 +100,7 @@ class Auth {
 
     /**
      * Retrieves all groups on the system (POSIX only).
+     * @return Array of GroupInfo objects.
      */
     public static function listGroups():Array<GroupInfo> {
         #if cpp
@@ -90,6 +124,14 @@ class Auth {
         #else
         return [];
         #end
+    }
+
+    /**
+     * Alias for listGroups.
+     * @return Array of GroupInfo objects.
+     */
+    public static function getGroups():Array<GroupInfo> {
+        return listGroups();
     }
 
     #if cpp

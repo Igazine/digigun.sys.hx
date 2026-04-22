@@ -31,17 +31,48 @@ class Main {
         trace("digigun.sys.hx Functional Test Suite");
         trace('Current PID: ${Process.getId()}');
 
+        // Basic Info & Time
+        testSystemInfo();
+        testTime();
+
+        // Identity
         testAuth();
+
+        // Security
         testRandom();
+
+        // Process & Control
+        testProcess();
+        testProcessTree();
+        testProcControl();
         testFork();
+        testSignal();
+        testRtControl();
+
+        // File System & I/O
+        testFileLock();
+        testMemoryMap();
+        testWatcher();
+        testDirectIO();
+        
+        // IPC & Sockets
+        testFifo();
+        testUnixDomainSocket();
+        testNonBlockingFifo();
+        testReadAll();
+        testSelector();
+        testSharedMemory();
+        testSemaphore();
+
+        // Network
+        testNetwork();
+        testSendFile();
+
         if (args.indexOf("--tui") != -1) {
             testConsoleTUI();
         } else {
             trace("Skipping Console TUI test (use --tui to enable).");
         }
-        testTime();
-...
-        testNetwork();
 
         trace("All architecture and implementation checks complete.");
     }
@@ -64,7 +95,7 @@ class Main {
             trace("  FAILED to get current user.");
         }
 
-        var groups = Auth.listGroups();
+        var groups = Auth.getGroups();
         if (groups.length > 0) {
             trace('  Successfully listed ${groups.length} system groups.');
             trace('  First group: ${groups[0].name} (GID: ${groups[0].gid})');
@@ -75,19 +106,6 @@ class Main {
             trace("  Group listing: FAILED (No groups found on POSIX)");
             #end
         }
-        }
-
-        static function testRandom() {
-        trace("--- Testing Secure Random & UUID ---");
-        testFifo();
-        testUnixDomainSocket();
-        testReadAll();
-        testNonBlockingFifo();
-        testSelector();
-        testSignal();
-        testNetwork();
-        
-        trace("All architecture and implementation checks complete.");
     }
 
     static function testRandom() {
