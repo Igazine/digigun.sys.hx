@@ -612,12 +612,14 @@ class Main {
                 trace("  Attribute removal: FAILED");
             }
         } else {
-            trace("  Attribute set: FAILED");
             #if linux
-            trace("  Note: Linux might require the filesystem to be mounted with user_xattr support.");
+            trace("  Attribute set: FAILED (Expected on some Docker filesystems like overlayfs)");
+            trace("  Note: Linux xattr requires ext4/xfs/btrfs with user_xattr support.");
+            #else
+            trace("  Attribute set: FAILED");
             #end
         }
 
-        try { FileSystem.deleteFile(testFile); } catch(e:Dynamic) {}
+        try { if (sys.FileSystem.exists(testFile)) sys.FileSystem.deleteFile(testFile); } catch(e:Dynamic) {}
     }
 }

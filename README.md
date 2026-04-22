@@ -113,7 +113,9 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] `setXAttr()` - Set extended file attribute ✅
 - [x] `listXAttrs()` - List extended file attributes ✅
 
-> **Note for Linux:** Unprivileged ping requires the `net.ipv4.ping_group_range` sysctl to be set. To enable for all users: `sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"`.
+> **Note for Linux:** Extended attributes (xattr) require a supporting filesystem (e.g., ext4, xfs, btrfs) mounted with `user_xattr` support. Standard Docker `overlayfs` may not support the `user.` namespace used by this library.
+
+> **Note for Linux (Network):** Unprivileged ping requires the `net.ipv4.ping_group_range` sysctl to be set. To enable for all users: `sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"`.
 
 ## Installation
 
