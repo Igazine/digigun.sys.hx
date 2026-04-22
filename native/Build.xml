@@ -2,24 +2,24 @@
     <include name="${HXCPP}/build-tool/BuildCommon.xml"/>
     
     <files id="native">
-        <compilerflag value="-I../../native/include"/>
-        <file name="../../native/src/fifo_native.cpp"/>
-        <file name="../../native/src/network_native.cpp"/>
-        <file name="../../native/src/process_native.cpp"/>
-        <file name="../../native/src/shm_native.cpp"/>
-        <file name="../../native/src/info_native.cpp"/>
-        <file name="../../native/src/fs_native.cpp"/>
-        <file name="../../native/src/sync_native.cpp"/>
-        <file name="../../native/src/proc_native.cpp"/>
-        <file name="../../native/src/time_native.cpp"/>
-        <file name="../../native/src/console_native.cpp"/>
-        <file name="../../native/src/signal_native.cpp"/>
-        <file name="../../native/src/rt_native.cpp"/>
-        <file name="../../native/src/io_native.cpp"/>
+        <compilerflag value="-I${haxelib:digigun.sys.hx}/native/include"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/fifo_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/network_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/process_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/shm_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/info_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/fs_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/sync_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/proc_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/time_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/console_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/signal_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/rt_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/io_native.cpp"/>
     </files>
 
     <files id="haxe">
-        <compilerflag value="-I../../native/include"/>
+        <compilerflag value="-I${haxelib:digigun.sys.hx}/native/include"/>
     </files>
 
     <target id="haxe">
@@ -29,6 +29,8 @@
         <lib name="advapi32.lib" if="windows"/>
         <lib name="shlwapi.lib" if="windows"/>
         <lib name="psapi.lib" if="windows"/>
+        <lib name="bcrypt.lib" if="windows"/>
+        <lib name="netapi32.lib" if="windows"/>
         <lib name="-lrt" if="linux"/>
         <linkerflag value="-framework" if="macos"/>
         <linkerflag value="CoreServices" if="macos"/>

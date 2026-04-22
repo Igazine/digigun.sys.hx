@@ -5,7 +5,7 @@ package digigun.sys;
  * Inclusion of this class ensures that Build.xml is processed by HXCPP.
  */
 #if cpp
-@:buildXml('<include name="../../../native/Build.xml" />')
+@:buildXml('<import name="${haxelib:digigun.sys.hx}/native/Build.xml" />')
 @:keep
 class NativeBuild {
     /**
