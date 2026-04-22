@@ -8,6 +8,7 @@ import digigun.sys.info.SystemInfo;
 import digigun.sys.fs.Watcher;
 import digigun.sys.fs.FileLock;
 import digigun.sys.fs.MemoryMap;
+import digigun.sys.fs.ExtendedAttributes;
 import digigun.sys.sync.NamedSemaphore;
 import digigun.sys.proc.ProcControl;
 import digigun.sys.time.Time;
@@ -53,6 +54,7 @@ class Main {
         testFileLock();
         testMemoryMap();
         testWatcher();
+        testExtendedAttributes();
         testDirectIO();
         
         // IPC & Sockets
@@ -563,5 +565,59 @@ class Main {
             if (server.listen()) trace("Socket listening successfully.");
         }
         server.close();
+    }
+
+    static function testExtendedAttributes() {
+        trace("--- Testing Extended Attributes (xattr / ADS) ---");
+        var testFile = "test_xattr.dat";
+        sys.io.File.saveContent(testFile, "Extended Attributes test content");
+
+        var attrName = "test_attr";
+        #if linux
+        attrName = "user.test_attr"; // Linux requires 'user.' prefix for user attributes
+        #end
+        
+        var testValue = haxe.io.Bytes.ofString("Hello from Extended Attributes!");
+
+        trace('  Setting attribute "${attrName}"...');
+        if (ExtendedAttributes.set(testFile, attrName, testValue)) {
+            trace("  Attribute set: SUCCESS");
+            
+            trace("  Getting attribute...");
+            var retrievedValue = ExtendedAttributes.get(testFile, attrName);
+            if (retrievedValue != null && retrievedValue.toString() == testValue.toString()) {
+                trace('  Attribute get: SUCCESS (Value: "${retrievedValue.toString()}")');
+            } else {
+                trace("  Attribute get: FAILED");
+            }
+
+            trace("  Listing attributes...");
+            var attrs = ExtendedAttributes.list(testFile);
+            trace('  Found ${attrs.length} attributes: ' + attrs.join(", "));
+            if (attrs.indexOf(attrName) != -1) {
+                trace("  Attribute listing: SUCCESS");
+            } else {
+                trace("  Attribute listing: FAILED");
+            }
+
+            trace("  Removing attribute...");
+            if (ExtendedAttributes.remove(testFile, attrName)) {
+                trace("  Attribute removal: SUCCESS");
+                if (ExtendedAttributes.get(testFile, attrName) == null) {
+                    trace("  Attribute removal verification: SUCCESS");
+                } else {
+                    trace("  Attribute removal verification: FAILED (Still exists)");
+                }
+            } else {
+                trace("  Attribute removal: FAILED");
+            }
+        } else {
+            trace("  Attribute set: FAILED");
+            #if linux
+            trace("  Note: Linux might require the filesystem to be mounted with user_xattr support.");
+            #end
+        }
+
+        try { FileSystem.deleteFile(testFile); } catch(e:Dynamic) {}
     }
 }

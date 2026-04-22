@@ -29,6 +29,11 @@ extern "C" {
     int fs_mmap_read(int id, int offset, char* buffer, int length);
     int fs_mmap_write(int id, int offset, const char* buffer, int length);
     void fs_mmap_flush(int id);
+
+    int fs_set_xattr(const char* path, const char* name, const unsigned char* value, int value_len);
+    int fs_get_xattr(const char* path, const char* name, unsigned char* buffer, int buffer_len);
+    int fs_list_xattrs(const char* path, char* buffer, int buffer_len);
+    int fs_remove_xattr(const char* path, const char* name);
 }
 
 #endif // FS_NATIVE_H

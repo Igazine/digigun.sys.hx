@@ -33,5 +33,17 @@ extern class Native {
 
     @:native("fs_mmap_flush")
     static function mmap_flush(id:Int):Void;
+
+    @:native("fs_set_xattr")
+    static function set_xattr(path:String, name:String, value:cpp.RawConstPointer<cpp.UInt8>, length:Int):Int;
+
+    @:native("fs_get_xattr")
+    static function get_xattr(path:String, name:String, buffer:cpp.RawPointer<cpp.UInt8>, length:Int):Int;
+
+    @:native("fs_list_xattrs")
+    static function list_xattrs(path:String, buffer:cpp.RawPointer<cpp.Char>, length:Int):Int;
+
+    @:native("fs_remove_xattr")
+    static function remove_xattr(path:String, name:String):Int;
 }
 #end

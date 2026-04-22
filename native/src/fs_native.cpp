@@ -19,6 +19,7 @@
 #include <fcntl.h>
 #include <sys/file.h>
 #include <sys/mman.h>
+#include <sys/xattr.h>
 #ifdef __APPLE__
 #include <CoreServices/CoreServices.h>
 #else
@@ -399,6 +400,105 @@ void fs_mmap_flush(int id) {
     FlushViewOfFile(g_mmaps[id].ptr, g_mmaps[id].size);
 #else
     msync(g_mmaps[id].ptr, g_mmaps[id].size, MS_SYNC);
+#endif
+}
+
+int fs_set_xattr(const char* path, const char* name, const unsigned char* value, int value_len) {
+#ifdef _WIN32
+    std::string full_path = std::string(path) + ":" + name;
+    HANDLE h = CreateFileA(full_path.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) return -1;
+    DWORD written;
+    BOOL res = WriteFile(h, value, (DWORD)value_len, &written, NULL);
+    CloseHandle(h);
+    return res ? 0 : -1;
+#else
+#ifdef __APPLE__
+    return setxattr(path, name, value, (size_t)value_len, 0, 0);
+#else
+    return setxattr(path, name, value, (size_t)value_len, 0);
+#endif
+#endif
+}
+
+int fs_get_xattr(const char* path, const char* name, unsigned char* buffer, int buffer_len) {
+#ifdef _WIN32
+    std::string full_path = std::string(path) + ":" + name;
+    HANDLE h = CreateFileA(full_path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) return -1;
+    
+    if (buffer == NULL || buffer_len == 0) {
+        LARGE_INTEGER size;
+        if (GetFileSizeEx(h, &size)) {
+            CloseHandle(h);
+            return (int)size.QuadPart;
+        }
+        CloseHandle(h);
+        return -1;
+    }
+
+    DWORD read;
+    BOOL res = ReadFile(h, buffer, (DWORD)buffer_len, &read, NULL);
+    CloseHandle(h);
+    return res ? (int)read : -1;
+#else
+#ifdef __APPLE__
+    ssize_t res = getxattr(path, name, buffer, (size_t)buffer_len, 0, 0);
+#else
+    ssize_t res = getxattr(path, name, buffer, (size_t)buffer_len);
+#endif
+    return (int)res;
+#endif
+}
+
+int fs_list_xattrs(const char* path, char* buffer, int buffer_len) {
+#ifdef _WIN32
+    WIN32_FIND_STREAM_DATA data;
+    HANDLE h = FindFirstStreamW(std::wstring(std::string(path).begin(), std::string(path).end()).c_str(), FindStreamInfoStandard, &data, 0);
+    if (h == INVALID_HANDLE_VALUE) return 0;
+
+    int total_len = 0;
+    do {
+        // Stream name is in format ":name:$DATA"
+        std::wstring ws(data.cStreamName);
+        std::string s(ws.begin(), ws.end());
+        
+        if (s.find(":$DATA") != std::string::npos) {
+            size_t first_colon = s.find(':');
+            size_t second_colon = s.find(':', first_colon + 1);
+            if (second_colon != std::string::npos) {
+                std::string stream_name = s.substr(first_colon + 1, second_colon - first_colon - 1);
+                if (!stream_name.empty()) {
+                    if (buffer != NULL && total_len + stream_name.length() + 1 <= (size_t)buffer_len) {
+                        memcpy(buffer + total_len, stream_name.c_str(), stream_name.length() + 1);
+                    }
+                    total_len += stream_name.length() + 1;
+                }
+            }
+        }
+    } while (FindNextStreamW(h, &data));
+    FindClose(h);
+    return total_len;
+#else
+#ifdef __APPLE__
+    ssize_t res = listxattr(path, buffer, (size_t)buffer_len, 0);
+#else
+    ssize_t res = listxattr(path, buffer, (size_t)buffer_len);
+#endif
+    return (int)res;
+#endif
+}
+
+int fs_remove_xattr(const char* path, const char* name) {
+#ifdef _WIN32
+    std::string full_path = std::string(path) + ":" + name;
+    return DeleteFileA(full_path.c_str()) ? 0 : -1;
+#else
+#ifdef __APPLE__
+    return removexattr(path, name, 0);
+#else
+    return removexattr(path, name);
+#endif
 #endif
 }
 
