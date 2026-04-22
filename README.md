@@ -26,6 +26,8 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - **Process Control**: Affinity, priority, and resource limits.
 - **Signal Handling**: Native signal trapping for POSIX and Windows.
 - **TUI/Console**: Low-level terminal control and block writing.
+- **Secure Random**: CSPRNG and UUID v4 support.
+- **Identity & Credentials**: Access to system user and group metadata.
 
 ## Status Legend
 
@@ -80,6 +82,11 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] `getBytes()` - Cryptographically secure random bytes ✅
 - [x] `uuid()` - Version 4 UUID generation ✅
 
+### Identity & Credentials (`digigun.sys.auth`) ✅
+- [x] `getCurrentUser()` - Information about the current user ✅
+- [x] `getUser(id)` - Polymorphic user lookup by UID or username ✅
+- [x] `getGroups()` - List system groups ✅
+
 ### Network Control (`digigun.sys.network`) ✅
 - [x] `getArpTable()` - Retrieve system ARP table ✅
 - [x] `bindToInterface()` - Bind socket to specific NIC ✅
@@ -100,6 +107,15 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] `getTerminalSize()` - Get window dimensions ✅
 - [x] `writeBlock()` - Fast character block writing ✅
 - [x] `useAlternateBuffer()` - Switch to alternate screen ✅
+
+### Extended File System Attributes (`digigun.sys.fs` expansion) 🚧
+- [ ] `getXAttr()` - Get extended file attribute ⏳
+- [ ] `setXAttr()` - Set extended file attribute ⏳
+- [ ] `listXAttrs()` - List extended file attributes ⏳
+
+### Dynamic Symbol Loading (`digigun.sys.dl`) ⏳
+- [ ] `open()` - Load shared library ⏳
+- [ ] `getSymbol()` - Resolve native symbol ⏳
 
 > **Note for Linux:** Unprivileged ping requires the `net.ipv4.ping_group_range` sysctl to be set. To enable for all users: `sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"`.
 
@@ -217,6 +233,17 @@ ProcControl.setAffinity(0xF);
 
 // Set high priority
 ProcControl.setPriority(AboveNormal);
+```
+
+### Identity & Credentials
+```haxe
+import digigun.sys.auth.Auth;
+
+var user = Auth.getCurrentUser();
+if (user != null) {
+    trace('Hello, ${user.realname} (${user.username})!');
+    trace('Home: ${user.homeDir}');
+}
 ```
 
 ## Safety & Security Considerations
