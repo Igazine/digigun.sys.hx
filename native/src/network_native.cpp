@@ -6,6 +6,7 @@
 #include <string>
 #include <map>
 #include <chrono>
+#include <mutex>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -72,10 +73,12 @@ static double get_timestamp_ms() {
 // Session management
 struct SessionData {
     int sock;
+    unsigned short session_ping_id;
     std::map<int, double> send_times;
 };
 
 static std::map<size_t, SessionData*> g_sessions;
+static std::mutex g_session_mutex;
 static size_t g_next_session_id = 1;
 
 extern "C" {
@@ -400,15 +403,28 @@ double ping_session_open() {
 #endif
     SessionData* sd = new SessionData();
     sd->sock = sock;
+
+    std::lock_guard<std::mutex> lock(g_session_mutex);
     size_t id = g_next_session_id++;
+
+#ifdef _WIN32
+    sd->session_ping_id = (unsigned short)((GetCurrentProcessId() ^ id) & 0xFFFF);
+#else
+    sd->session_ping_id = (unsigned short)((getpid() ^ id) & 0xFFFF);
+#endif
+
     g_sessions[id] = sd;
     return (double)id;
 }
 
 int ping_session_send(double handle, const char* host, int seq) {
     size_t id = (size_t)handle;
-    if (g_sessions.find(id) == g_sessions.end()) return -1;
-    SessionData* sd = g_sessions[id];
+    SessionData* sd = NULL;
+    {
+        std::lock_guard<std::mutex> lock(g_session_mutex);
+        if (g_sessions.find(id) == g_sessions.end()) return -1;
+        sd = g_sessions[id];
+    }
 
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof(hints));
@@ -425,11 +441,7 @@ int ping_session_send(double handle, const char* host, int seq) {
     memset(&icp, 0, sizeof(icp));
     icp.icmp_type = ICMP_ECHO;
     icp.icmp_code = 0;
-#ifdef _WIN32
-    icp.icmp_id = GetCurrentProcessId() & 0xFFFF;
-#else
-    icp.icmp_id = getpid() & 0xFFFF;
-#endif
+    icp.icmp_id = sd->session_ping_id;
     icp.icmp_seq = seq;
     icp.icmp_cksum = calculate_checksum(&icp, sizeof(icp));
 
@@ -440,36 +452,39 @@ int ping_session_send(double handle, const char* host, int seq) {
 
 struct NativePingReply* ping_session_recv(double handle) {
     size_t id = (size_t)handle;
-    if (g_sessions.find(id) == g_sessions.end()) return NULL;
-    SessionData* sd = g_sessions[id];
+    SessionData* sd = NULL;
+    {
+        std::lock_guard<std::mutex> lock(g_session_mutex);
+        if (g_sessions.find(id) == g_sessions.end()) return NULL;
+        sd = g_sessions[id];
+    }
 
     NativePingReply* head = NULL;
     NativePingReply* tail = NULL;
     char buffer[1024];
     struct sockaddr_in from_addr;
-#ifdef _WIN32
-    int from_len = sizeof(from_addr);
-#else
-    socklen_t from_len = sizeof(from_addr);
-#endif
+    unsigned int from_len = sizeof(from_addr);
 
     while (true) {
         int bytes = -1;
         double recv_time = 0;
 
 #ifdef _WIN32
-        bytes = recvfrom(sd->sock, buffer, sizeof(buffer), 0, (struct sockaddr*)&from_addr, &from_len);
+        int win_from_len = (int)from_len;
+        bytes = recvfrom(sd->sock, buffer, sizeof(buffer), 0, (struct sockaddr*)&from_addr, &win_from_len);
         recv_time = get_timestamp_ms();
 #else
-        struct msghdr msg = {0};
+        struct msghdr msg;
+        memset(&msg, 0, sizeof(msg));
         struct iovec iov[1];
         char ctrl[CMSG_SPACE(sizeof(struct timeval))];
+        memset(ctrl, 0, sizeof(ctrl));
         
         iov[0].iov_base = buffer;
         iov[0].iov_len = sizeof(buffer);
         
         msg.msg_name = &from_addr;
-        msg.msg_namelen = sizeof(from_addr);
+        msg.msg_namelen = (socklen_t)from_len;
         msg.msg_iov = iov;
         msg.msg_iovlen = 1;
         msg.msg_control = ctrl;
@@ -496,17 +511,28 @@ struct NativePingReply* ping_session_recv(double handle) {
         if (buffer[0] == ICMP_ECHOREPLY) reply = (struct icmp*)buffer;
         else reply = (struct icmp*)(buffer + 20); // Skip IP header
 
+        // On Linux SOCK_DGRAM, the kernel overwrites the ICMP ID with a port-like 
+        // identifier. We can skip the ID check on POSIX as the kernel already 
+        // isolates SOCK_DGRAM ICMP packets per socket.
+#ifdef _WIN32
+        bool id_match = (reply->icmp_id == sd->session_ping_id);
+#else
+        bool id_match = true; 
+#endif
+        
         if (reply->icmp_type == ICMP_ECHOREPLY) {
-            int seq = reply->icmp_seq;
-            if (sd->send_times.find(seq) != sd->send_times.end()) {
-                double rtt = recv_time - sd->send_times[seq];
-                NativePingReply* node = (NativePingReply*)malloc(sizeof(NativePingReply));
-                node->seq = seq;
-                node->rtt = rtt;
-                node->next = NULL;
-                if (!head) head = node; else tail->next = node;
-                tail = node;
-                sd->send_times.erase(seq);
+            if (id_match) {
+                int seq = reply->icmp_seq;
+                if (sd->send_times.find(seq) != sd->send_times.end()) {
+                    double rtt = recv_time - sd->send_times[seq];
+                    NativePingReply* node = (NativePingReply*)malloc(sizeof(NativePingReply));
+                    node->seq = seq;
+                    node->rtt = rtt;
+                    node->next = NULL;
+                    if (!head) head = node; else tail->next = node;
+                    tail = node;
+                    sd->send_times.erase(seq);
+                }
             }
         }
     }
@@ -519,6 +545,7 @@ void ping_session_free_replies(struct NativePingReply* list) {
 
 void ping_session_close(double handle) {
     size_t id = (size_t)handle;
+    std::lock_guard<std::mutex> lock(g_session_mutex);
     if (g_sessions.find(id) != g_sessions.end()) {
 #ifdef _WIN32
         closesocket(g_sessions[id]->sock);
