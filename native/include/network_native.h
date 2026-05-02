@@ -1,7 +1,7 @@
 #ifndef NETWORK_NATIVE_H
 #define NETWORK_NATIVE_H
 
-#include <string>
+#include <stddef.h>
 
 /**
  * Native interface structure.
@@ -13,6 +13,15 @@ struct NativeInterface {
     char mac[256];
     int flags;
     NativeInterface* next;
+};
+
+/**
+ * Native structure for ping replies in a session.
+ */
+struct NativePingReply {
+    int seq;
+    double rtt;
+    NativePingReply* next;
 };
 
 /**
@@ -46,6 +55,22 @@ extern "C" {
     void network_free_arp_table(NativeArpEntry* list);
 
     int network_bind_to_interface(int socket_fd, const char* interface_name);
+
+    /**
+     * Advanced Socket Control
+     */
+    int network_set_socket_opt(int socket_fd, int level, int option, const void* val, int len);
+    int network_get_constant(const char* name);
+
+    /**
+     * Mass Ping (Session-based)
+     * Handles are passed as double to avoid HXCPP template ambiguity.
+     */
+    double ping_session_open();
+    int ping_session_send(double handle, const char* host, int seq);
+    struct NativePingReply* ping_session_recv(double handle);
+    void ping_session_free_replies(struct NativePingReply* list);
+    void ping_session_close(double handle);
 }
 
 #endif // NETWORK_NATIVE_H

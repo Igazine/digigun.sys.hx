@@ -2,6 +2,7 @@ package digigun.sys.network;
 
 import cpp.RawPointer;
 
+@:noDoc
 #if cpp
 @:include("network_native.h")
 @:native("NativeIP")
@@ -11,6 +12,7 @@ extern class NativeIP {
     @:native("next") var next:RawPointer<NativeIP>;
 }
 
+@:noDoc
 @:include("network_native.h")
 @:native("NativeInterface")
 @:structAccess
@@ -23,6 +25,7 @@ extern class NativeInterface {
     @:native("next") var next:RawPointer<NativeInterface>;
 }
 
+@:noDoc
 @:include("network_native.h")
 @:native("NativeArpEntry")
 @:structAccess
@@ -33,6 +36,17 @@ extern class NativeArpEntry {
     @:native("next") var next:RawPointer<NativeArpEntry>;
 }
 
+@:noDoc
+@:include("network_native.h")
+@:native("NativePingReply")
+@:structAccess
+extern class NativePingReply {
+    @:native("seq") var seq:Int;
+    @:native("rtt") var rtt:Float;
+    @:native("next") var next:RawPointer<NativePingReply>;
+}
+
+@:noDoc
 @:include("network_native.h")
 extern class Native {
     private static function __init__():Void { digigun.sys.NativeBuild.init(); }
@@ -60,5 +74,26 @@ extern class Native {
 
     @:native("network_bind_to_interface")
     static function bind_to_interface(socket_fd:Int, interface_name:String):Int;
+
+    @:native("network_set_socket_opt")
+    static function set_socket_opt(socket_fd:Int, level:Int, option:Int, val:RawPointer<cpp.Void>, len:Int):Int;
+
+    @:native("network_get_constant")
+    static function get_constant(name:String):Int;
+
+    @:native("ping_session_open")
+    static function ping_session_open():Float;
+
+    @:native("ping_session_send")
+    static function ping_session_send(handle:Float, host:String, seq:Int):Int;
+
+    @:native("ping_session_recv")
+    static function ping_session_recv(handle:Float):RawPointer<NativePingReply>;
+
+    @:native("ping_session_free_replies")
+    static function ping_session_free_replies(list:RawPointer<NativePingReply>):Void;
+
+    @:native("ping_session_close")
+    static function ping_session_close(handle:Float):Void;
 }
 #end

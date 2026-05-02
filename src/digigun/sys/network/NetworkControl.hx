@@ -53,17 +53,54 @@ class NetworkControl {
      */
     public static function bindToInterface(socket:sys.net.Socket, interfaceName:String):Bool {
         #if cpp
-        // Access internal socket handle in HXCPP
-        var handle:Dynamic = untyped socket.__s;
-        if (handle == null) return false;
-        
-        // Use hxcpp internal conversion to get the raw socket descriptor
-        var fd:Int = untyped __cpp__("(int)(intptr_t)({0}.mPtr ? {0}->__ToInt() : -1)", handle);
-        
+        var fd = getSocketFd(socket);
         if (fd == -1) return false;
         return Native.bind_to_interface(fd, interfaceName) == 0;
         #else
         return false;
         #end
     }
+
+    /**
+     * Sets an integer socket option.
+     * @param socket The Haxe sys.net.Socket.
+     * @param level The protocol level (e.g., SocketOption.SOL_SOCKET).
+     * @param option The option name (e.g., SocketOption.SO_REUSEADDR).
+     * @param value The integer value.
+     * @return True if successful.
+     */
+    public static function setSocketOptionInt(socket:sys.net.Socket, level:Int, option:Int, value:Int):Bool {
+        #if cpp
+        var fd = getSocketFd(socket);
+        if (fd == -1 || level == -1 || option == -1) return false;
+        
+        var val = cpp.Pointer.addressOf(value);
+        return Native.set_socket_opt(fd, level, option, cast val.raw, 4) == 0;
+        #else
+        return false;
+        #end
+    }
+
+    /**
+     * Sets a boolean socket option.
+     * @param socket The Haxe sys.net.Socket.
+     * @param level The protocol level.
+     * @param option The option name.
+     * @param value The boolean value.
+     * @return True if successful.
+     */
+    public static function setSocketOptionBool(socket:sys.net.Socket, level:Int, option:Int, value:Bool):Bool {
+        return setSocketOptionInt(socket, level, option, value ? 1 : 0);
+    }
+
+    #if cpp
+    private static function getSocketFd(socket:sys.net.Socket):Int {
+        // Access internal socket handle in HXCPP
+        var handle:Dynamic = untyped socket.__s;
+        if (handle == null) return -1;
+        
+        // Use hxcpp internal conversion to get the raw socket descriptor
+        return untyped __cpp__("(int)(intptr_t)({0}.mPtr ? {0}->__ToInt() : -1)", handle);
+    }
+    #end
 }

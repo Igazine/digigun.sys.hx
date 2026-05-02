@@ -2,6 +2,8 @@ import digigun.sys.fifo.Fifo;
 import digigun.sys.fifo.UnixDomainSocket;
 import digigun.sys.network.Network;
 import digigun.sys.network.NetworkControl;
+import digigun.sys.network.SocketOption;
+import digigun.sys.network.PingSession;
 import digigun.sys.process.Process;
 import digigun.sys.shm.SharedMemory;
 import digigun.sys.info.SystemInfo;
@@ -490,12 +492,44 @@ class Main {
         for (ni in interfaces) {
             trace('Interface: ${ni.name} | IPv4: ${ni.ipv4} | MAC: ${ni.mac} | Flags: ${ni.flags}');
         }
-        trace("Pinging '8.8.8.8'...");
+
+        trace("--- Testing Socket Options ---");
+        var sock = new sys.net.Socket();
+        try {
+            // TCP_NODELAY is a common option to toggle
+            var success = NetworkControl.setSocketOptionBool(sock, SocketOption.IPPROTO_TCP, SocketOption.TCP_NODELAY, true);
+            trace('  Set TCP_NODELAY: ${success ? "SUCCESS" : "FAILED (expected if socket not connected)"}');
+        } catch(e:Dynamic) {
+            trace("  Set TCP_NODELAY error: " + e);
+        }
+        sock.close();
+
+        trace("--- Testing Ping (Single) ---");
         var rtt = Network.ping("8.8.8.8");
-        if (rtt >= 0) trace('Ping successful: RTT = ${rtt}ms');
-        trace("Pinging '127.0.0.1'...");
-        var rttLocal = Network.ping("127.0.0.1");
-        if (rttLocal >= 0) trace('Ping local successful: RTT = ${rttLocal}ms');
+        if (rtt >= 0) trace('  Ping successful: RTT = ${rtt}ms');
+        
+        trace("--- Testing Mass Ping (PingSession) ---");
+        var session = new PingSession();
+        var targets = ["8.8.8.8", "1.1.1.1", "127.0.0.1", "google.com"];
+        for (t in targets) {
+            var seq = session.send(t);
+            trace('  Sent ping to ${t} (seq: ${seq})');
+        }
+
+        // Wait up to 1 second for replies
+        var totalWait = 0.0;
+        var receivedCount = 0;
+        while (totalWait < 1.0 && receivedCount < targets.length) {
+            var replies = session.collect();
+            for (r in replies) {
+                trace('  Reply from ${r.host}: RTT = ${Math.round(r.rtt * 100) / 100}ms (seq: ${r.seq})');
+                receivedCount++;
+            }
+            Sys.sleep(0.1);
+            totalWait += 0.1;
+        }
+        trace('  Mass ping complete. Received ${receivedCount}/${targets.length} replies.');
+        session.close();
     }
 
     static function testSendFile() {
