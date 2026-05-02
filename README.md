@@ -19,6 +19,8 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - **FIFO (Named Pipes)**: Create and communicate through local named pipes.
 - **Unix Domain Sockets**: High-performance local bidirectional Inter-Process Communication (IPC).
 - **Network Functions**: DNS resolution, interface listing, and unprivileged ping.
+- **Network Control**: `setsockopt` wrappers, ARP table extraction, and interface binding.
+- **Mass Ping (`PingSession`)**: High-precision multi-target pinging with kernel timestamping.
 - **Shared Memory**: Cross-process shared memory segments.
 - **System Info**: RAM, CPU, and Disk diagnostics.
 - **File System**: Native recursive watcher, advisory locking, and memory mapping.
@@ -90,6 +92,8 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 ### Network Control (`digigun.sys.network`) ✅
 - [x] `getArpTable()` - Retrieve system ARP table ✅
 - [x] `bindToInterface()` - Bind socket to specific NIC ✅
+- [x] `setSocketOption()` - High-level `setsockopt` wrappers ✅
+- [x] `PingSession` - High-performance mass ping with Kernel Timestamping (POSIX) ✅
 
 ### Inter-Process Synchronization (`digigun.sys.sync`) ✅
 - [x] `NamedSemaphore` - Cross-process named semaphores ✅
@@ -112,6 +116,10 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] `getXAttr()` - Get extended file attribute ✅
 - [x] `setXAttr()` - Set extended file attribute ✅
 - [x] `listXAttrs()` - List extended file attributes ✅
+
+### System Service Integration (`digigun.sys.service`) 🚧
+- [ ] `notify()` - systemd/SCM status reporting ⏳
+- [ ] `isService()` - Check if running as a daemon ⏳
 
 > **Note for Linux:** Extended attributes (xattr) require a supporting filesystem (e.g., ext4, xfs, btrfs) mounted with `user_xattr` support. Standard Docker `overlayfs` may not support the `user.` namespace used by this library.
 
@@ -140,6 +148,40 @@ Mobile operating systems (such as **Android and iOS**) might be partially suppor
 If you encounter any misbehavior, bugs, or platform-specific issues, please **open a GitHub issue**. Feedback and pull requests are welcome to help improve cross-platform stability.
 
 ## Usage Examples
+
+### High-Performance Mass Ping
+```haxe
+import digigun.sys.network.PingSession;
+
+var session = new PingSession();
+var targets = ["8.8.8.8", "1.1.1.1", "google.com"];
+
+for (host in targets) {
+    session.send(host);
+}
+
+// Non-blocking collection of results
+// POSIX targets use Kernel Timestamping to bypass application polling lag.
+while (true) {
+    var replies = session.collect();
+    for (reply in replies) {
+        trace('Reply from ${reply.host}: RTT = ${reply.rtt}ms');
+    }
+    if (/* all received or timeout */) break;
+    Sys.sleep(0.01);
+}
+session.close();
+```
+
+### Socket Options
+```haxe
+import digigun.sys.network.NetworkControl;
+import digigun.sys.network.SocketOption;
+
+var sock = new sys.net.Socket();
+// Disable Nagle's algorithm
+NetworkControl.setSocketOptionBool(sock, SocketOption.IPPROTO_TCP, SocketOption.TCP_NODELAY, true);
+```
 
 ### FIFO (Named Pipe)
 ```haxe
@@ -202,17 +244,6 @@ Watcher.watch("./src", (event) -> {
 // Watcher.stopAll();
 ```
 
-### System Diagnostics
-```haxe
-import digigun.sys.info.SystemInfo;
-
-var mem = SystemInfo.getMemoryInfo();
-trace('RAM Used: ${Math.round(mem.used / 1024 / 1024)} MB');
-
-var cpu = SystemInfo.getCpuUsage();
-trace('CPU Usage: ${cpu}%');
-```
-
 ### Native Signal Handling
 ```haxe
 import digigun.sys.signal.Signal;
@@ -220,17 +251,6 @@ import digigun.sys.signal.Signal;
 Signal.trap(Signal.USR1, (signo) -> {
     trace('Received SIGUSR1 ($signo). Performing hot-reload...');
 });
-```
-
-### Process Control
-```haxe
-import digigun.sys.proc.ProcControl;
-
-// Pin process to first 4 cores
-ProcControl.setAffinity(0xF); 
-
-// Set high priority
-ProcControl.setPriority(AboveNormal);
 ```
 
 ### Identity & Credentials
