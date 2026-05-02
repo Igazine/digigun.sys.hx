@@ -18,9 +18,7 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 
 - **FIFO (Named Pipes)**: Create and communicate through local named pipes.
 - **Unix Domain Sockets**: High-performance local bidirectional Inter-Process Communication (IPC).
-- **Network Functions**: DNS resolution, interface listing, and unprivileged ping.
-- **Network Control**: `setsockopt` wrappers, ARP table extraction, and interface binding.
-- **Mass Ping (`PingSession`)**: High-precision multi-target pinging with kernel timestamping.
+- **Network Functions**: DNS resolution, interface listing, unprivileged ping, `setsockopt` wrappers, ARP table extraction, and high-precision mass-ping (`PingSession`).
 - **Shared Memory**: Cross-process shared memory segments.
 - **System Info**: RAM, CPU, and Disk diagnostics.
 - **File System**: Native recursive watcher, advisory locking, and memory mapping.
@@ -51,6 +49,10 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] `getHostInfo()` - DNS resolution (getaddrinfo) ✅
 - [x] `getNetworkInterfaces()` - Available interfaces (getifaddrs) ✅
 - [x] `ping()` - ICMP implementation (unprivileged) ✅
+- [x] `getArpTable()` - Retrieve system ARP table ✅
+- [x] `bindToInterface()` - Bind socket to specific NIC ✅
+- [x] `setSocketOption()` - High-level `setsockopt` wrappers ✅
+- [x] `PingSession` - High-performance mass ping with Kernel Timestamping (POSIX) ✅
 
 ### Shared Memory (`digigun.sys.shm`) ✅
 - [x] Create and open shared segments (Unix/macOS/Windows) ✅
@@ -88,12 +90,6 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] `getCurrentUser()` - Information about the current user ✅
 - [x] `getUser(id)` - Polymorphic user lookup by UID or username ✅
 - [x] `getGroups()` - List system groups ✅
-
-### Network Control (`digigun.sys.network`) ✅
-- [x] `getArpTable()` - Retrieve system ARP table ✅
-- [x] `bindToInterface()` - Bind socket to specific NIC ✅
-- [x] `setSocketOption()` - High-level `setsockopt` wrappers ✅
-- [x] `PingSession` - High-performance mass ping with Kernel Timestamping (POSIX) ✅
 
 ### Inter-Process Synchronization (`digigun.sys.sync`) ✅
 - [x] `NamedSemaphore` - Cross-process named semaphores ✅
