@@ -7,6 +7,7 @@ import haxe.Int64;
  * Uses Int64 to represent the handle value, ensuring stability
  * across all hxcpp platforms and avoiding size_t template ambiguities.
  */
+@:noDoc
 #if cpp
 class NativeHandle {
     public var value(default, null):Float;

@@ -1,5 +1,6 @@
 package digigun.sys.rt;
 
+@:noDoc
 #if cpp
 @:include("rt_native.h")
 extern class Native {

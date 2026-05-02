@@ -2,6 +2,7 @@ package digigun.sys.io;
 
 import digigun.sys.NativeHandle;
 
+@:noDoc
 #if cpp
 @:include("io_native.h")
 extern class Native {

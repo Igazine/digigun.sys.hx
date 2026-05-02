@@ -2,6 +2,7 @@ package digigun.sys.sync;
 
 import digigun.sys.NativeHandle;
 
+@:noDoc
 #if cpp
 @:include("sync_native.h")
 extern class Native {

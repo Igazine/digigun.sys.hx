@@ -1,5 +1,6 @@
 package digigun.sys.proc;
 
+@:noDoc
 #if cpp
 @:include("proc_native.h")
 extern class Native {

@@ -1,5 +1,6 @@
 package digigun.sys.signal;
 
+@:noDoc
 #if cpp
 @:include("signal_native.h")
 extern class Native {

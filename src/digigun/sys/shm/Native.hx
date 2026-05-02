@@ -2,6 +2,7 @@ package digigun.sys.shm;
 
 import digigun.sys.NativeHandle;
 
+@:noDoc
 #if cpp
 @:include("shm_native.h")
 extern class Native {

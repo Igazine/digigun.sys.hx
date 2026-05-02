@@ -58,9 +58,15 @@ static void ensure_winsock_init() {
 
 // High-resolution timer helper
 static double get_timestamp_ms() {
+#ifdef _WIN32
     auto now = std::chrono::steady_clock::now();
     auto duration = now.time_since_epoch();
     return std::chrono::duration_cast<std::chrono::microseconds>(duration).count() / 1000.0;
+#else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (double)tv.tv_sec * 1000.0 + (double)tv.tv_usec / 1000.0;
+#endif
 }
 
 // Session management
@@ -383,6 +389,11 @@ double ping_session_open() {
 #else
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
     if (sock < 0) return 0;
+
+    // Enable kernel timestamping
+    int enabled = 1;
+    setsockopt(sock, SOL_SOCKET, SO_TIMESTAMP, &enabled, sizeof(enabled));
+
     // Set non-blocking
     int flags = fcntl(sock, F_GETFL, 0);
     fcntl(sock, F_SETFL, flags | O_NONBLOCK);
@@ -443,10 +454,44 @@ struct NativePingReply* ping_session_recv(double handle) {
 #endif
 
     while (true) {
-        int bytes = recvfrom(sd->sock, buffer, sizeof(buffer), 0, (struct sockaddr*)&from_addr, &from_len);
-        if (bytes <= 0) break;
+        int bytes = -1;
+        double recv_time = 0;
 
-        double recv_time = get_timestamp_ms();
+#ifdef _WIN32
+        bytes = recvfrom(sd->sock, buffer, sizeof(buffer), 0, (struct sockaddr*)&from_addr, &from_len);
+        recv_time = get_timestamp_ms();
+#else
+        struct msghdr msg = {0};
+        struct iovec iov[1];
+        char ctrl[CMSG_SPACE(sizeof(struct timeval))];
+        
+        iov[0].iov_base = buffer;
+        iov[0].iov_len = sizeof(buffer);
+        
+        msg.msg_name = &from_addr;
+        msg.msg_namelen = sizeof(from_addr);
+        msg.msg_iov = iov;
+        msg.msg_iovlen = 1;
+        msg.msg_control = ctrl;
+        msg.msg_controllen = sizeof(ctrl);
+        
+        bytes = recvmsg(sd->sock, &msg, 0);
+        
+        if (bytes > 0) {
+            struct cmsghdr *cmsg;
+            for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+                if (cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_TIMESTAMP) {
+                    struct timeval *tv = (struct timeval *)CMSG_DATA(cmsg);
+                    recv_time = (double)tv->tv_sec * 1000.0 + (double)tv->tv_usec / 1000.0;
+                    break;
+                }
+            }
+        }
+#endif
+
+        if (bytes <= 0) break;
+        if (recv_time == 0) recv_time = get_timestamp_ms();
+
         struct icmp* reply;
         if (buffer[0] == ICMP_ECHOREPLY) reply = (struct icmp*)buffer;
         else reply = (struct icmp*)(buffer + 20); // Skip IP header

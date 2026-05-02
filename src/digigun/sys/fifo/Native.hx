@@ -2,6 +2,7 @@ package digigun.sys.fifo;
 
 import digigun.sys.NativeHandle;
 
+@:noDoc
 #if cpp
 @:include("fifo_native.h")
 extern class Native {

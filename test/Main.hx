@@ -509,6 +509,7 @@ class Main {
         if (rtt >= 0) trace('  Ping successful: RTT = ${rtt}ms');
         
         trace("--- Testing Mass Ping (PingSession) ---");
+        trace("  Note: Using 100ms polling interval to verify Kernel Timestamping precision.");
         var session = new PingSession();
         var targets = ["8.8.8.8", "1.1.1.1", "127.0.0.1", "google.com"];
         for (t in targets) {

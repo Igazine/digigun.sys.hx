@@ -2,6 +2,7 @@ package digigun.sys.process;
 
 import cpp.RawPointer;
 
+@:noDoc
 #if cpp
 @:include("process_native.h")
 @:native("NativeProcessInfo")
@@ -15,6 +16,7 @@ extern class NativeProcessInfo {
     @:native("next") var next:RawPointer<NativeProcessInfo>;
 }
 
+@:noDoc
 @:include("process_native.h")
 extern class Native {
     private static function __init__():Void { digigun.sys.NativeBuild.init(); }

@@ -7,6 +7,7 @@ package digigun.sys;
 #if cpp
 @:buildXml('<import name="${haxelib:digigun.sys.hx}/native/Build.xml" />')
 @:keep
+@:noDoc
 class NativeBuild {
     /**
      * Dummy method to ensure the class is referenced and not stripped by the compiler.

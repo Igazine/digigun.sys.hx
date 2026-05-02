@@ -1,5 +1,6 @@
 package digigun.sys.random;
 
+@:noDoc
 #if cpp
 @:include("random_native.h")
 extern class Native {

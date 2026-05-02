@@ -2,6 +2,7 @@ package digigun.sys.info;
 
 import cpp.Pointer;
 
+@:noDoc
 #if cpp
 @:include("info_native.h")
 extern class Native {

@@ -2,6 +2,7 @@ package digigun.sys.console;
 
 import cpp.Pointer;
 
+@:noDoc
 #if cpp
 @:include("console_native.h")
 extern class Native {

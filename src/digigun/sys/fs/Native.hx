@@ -2,6 +2,7 @@ package digigun.sys.fs;
 
 import cpp.Callable;
 
+@:noDoc
 #if cpp
 @:include("fs_native.h")
 extern class Native {

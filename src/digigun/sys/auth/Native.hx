@@ -2,6 +2,7 @@ package digigun.sys.auth;
 
 import cpp.RawPointer;
 
+@:noDoc
 #if cpp
 @:include("auth_native.h")
 @:native("NativeUserInfo")
@@ -16,6 +17,7 @@ extern class NativeUserInfo {
     @:native("next") var next:RawPointer<NativeUserInfo>;
 }
 
+@:noDoc
 @:include("auth_native.h")
 @:native("NativeGroupInfo")
 @:structAccess
@@ -25,6 +27,7 @@ extern class NativeGroupInfo {
     @:native("next") var next:RawPointer<NativeGroupInfo>;
 }
 
+@:noDoc
 @:include("auth_native.h")
 extern class Native {
     private static function __init__():Void {

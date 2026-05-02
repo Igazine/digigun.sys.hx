@@ -2,6 +2,7 @@ package digigun.sys.time;
 
 import haxe.Int64;
 
+@:noDoc
 #if cpp
 @:include("time_native.h")
 extern class Native {

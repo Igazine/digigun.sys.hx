@@ -1,0 +1,1 @@
+haxe -xml docs/doc.xml -D doc-gen --class-path src
