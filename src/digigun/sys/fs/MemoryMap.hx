@@ -2,98 +2,97 @@ package digigun.sys.fs;
 
 import haxe.io.Bytes;
 import haxe.io.BytesData;
-import cpp.NativeArray;
 
 /**
  * Class for high-performance memory-mapped file access.
  */
 class MemoryMap {
-    private var id:Int = -1;
-    private var size:Int = 0;
-
-    private function new(id:Int, size:Int) {
-        this.id = id;
-        this.size = size;
-    }
+    private var id:Float = -1.0;
+    private var size:Int;
 
     /**
-     * Maps a file into memory.
-     * @param path The path to the file.
-     * @param size The size of the mapping (0 for current file size).
-     * @param writable If true, allows writing to the mapped memory.
-     * @return A MemoryMap instance, or null on error.
+     * Maps a file into the process memory space.
+     * @param path File path to map.
+     * @param size Size of the mapping in bytes.
+     * @param writable True for read/write access, false for read-only.
+     * @return MemoryMap instance or null on failure.
      */
-    public static function open(path:String, size:Int = 0, writable:Bool = true):MemoryMap {
+    public static function open(path:String, size:Int, writable:Bool = false):MemoryMap {
         #if cpp
-        var id = Native.mmap_open(path, size, writable ? 1 : 0);
-        if (id == -1) return null;
-        
-        // We need to know the actual mapped size if 0 was passed
-        // For simplicity in this bridge, the native side should return the size
-        // but for now let's assume we map what's requested or file size.
-        return new MemoryMap(id, size);
+        var res = Native.mmap_open(path, size, writable ? 1 : 0);
+        if (res != -1.0) {
+            var mmap = new MemoryMap();
+            mmap.id = res;
+            mmap.size = size;
+            return mmap;
+        }
+        return null;
         #else
         return null;
         #end
     }
 
     /**
-     * Reads bytes from the mapped file.
-     * @param offset Offset from start.
-     * @param length Number of bytes.
-     * @return Bytes object.
+     * Closes the memory mapping.
+     */
+    public function close():Void {
+        #if cpp
+        if (id != -1.0) {
+            Native.mmap_close(id);
+            id = -1.0;
+        }
+        #end
+    }
+
+    /**
+     * Reads bytes from the memory map.
+     * @param offset Offset into the mapping.
+     * @param length Number of bytes to read.
+     * @return Bytes object containing the data, or null on error.
      */
     public function read(offset:Int, length:Int):Bytes {
         #if cpp
-        if (this.id == -1) return null;
+        if (id == -1.0) return null;
         var bytes = Bytes.alloc(length);
         var data:BytesData = bytes.getData();
-        var ptr = cast NativeArray.address(data, 0);
+        var ptr:cpp.RawPointer<cpp.Char> = cast cpp.NativeArray.address(data, 0);
         
-        var readCount = Native.mmap_read(this.id, offset, ptr, length);
-        if (readCount == -1) return null;
-        if (readCount < length) return bytes.sub(0, readCount);
-        return bytes;
+        var read = Native.mmap_read(id, offset, ptr, length);
+        if (read >= 0) return bytes;
+        return null;
         #else
         return null;
         #end
     }
 
     /**
-     * Writes bytes to the mapped file.
-     * @param offset Offset from start.
-     * @param data The bytes to write.
-     * @return Number of bytes written.
+     * Writes bytes to the memory map.
+     * @param offset Offset into the mapping.
+     * @param value Bytes to write.
+     * @return Number of bytes written, or -1 on error.
      */
-    public function write(offset:Int, data:Bytes):Int {
+    public function write(offset:Int, value:Bytes):Int {
         #if cpp
-        if (this.id == -1) return -1;
-        var bytesData:BytesData = data.getData();
-        var ptr = cast NativeArray.address(bytesData, 0);
-        return Native.mmap_write(this.id, offset, ptr, data.length);
+        if (id == -1.0) return -1;
+        var data:BytesData = value.getData();
+        var ptr:cpp.RawConstPointer<cpp.Char> = cast cpp.NativeArray.address(data, 0);
+        
+        return Native.mmap_write(id, offset, ptr, value.length);
         #else
         return -1;
         #end
     }
 
     /**
-     * Flushes changes to disk.
+     * Flushes changes to the underlying file.
      */
     public function flush():Void {
         #if cpp
-        if (this.id != -1) Native.mmap_flush(this.id);
-        #end
-    }
-
-    /**
-     * Unmaps the memory and closes the file.
-     */
-    public function close():Void {
-        #if cpp
-        if (this.id != -1) {
-            Native.mmap_close(this.id);
-            this.id = -1;
+        if (id != -1.0) {
+            Native.mmap_flush(id);
         }
         #end
     }
+
+    private function new() {}
 }

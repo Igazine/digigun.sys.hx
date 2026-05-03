@@ -22,6 +22,18 @@ import digigun.sys.auth.Auth;
 import sys.FileSystem;
 
 class Main {
+    static function getTestPath(name:String):String {
+        #if windows
+        var envTemp = Sys.getEnv("TEMP");
+        if (envTemp != null && envTemp != "") {
+            return envTemp + "\\" + name;
+        }
+        return "C:\\temp\\" + name;
+        #else
+        return name;
+        #end
+    }
+
     static function main() {
         // Check for Windows fork emulation flag
         var args = Sys.args();
@@ -310,9 +322,12 @@ class Main {
 
     static function testMemoryMap() {
         trace("--- Testing Memory Mapped Files ---");
-        var mmapFile = "test_mmap.dat";
+        var mmapFile = getTestPath("test_mmap.dat");
         var testStr = "Memory Mapping is fast!";
         var testData = haxe.io.Bytes.ofString(testStr);
+        // Ensure file exists and has size
+        sys.io.File.saveContent(mmapFile, "padding_data_for_mmap_test_1234567890");
+        
         var mmap = MemoryMap.open(mmapFile, 1024, true);
         if (mmap != null) {
             trace("Memory Map opened successfully.");
@@ -325,7 +340,7 @@ class Main {
             var fileContent = sys.io.File.getContent(mmapFile);
             if (fileContent.indexOf(testStr) == 0) trace("File consistency verification: SUCCESS");
         } else trace("Failed to open Memory Map.");
-        try { FileSystem.deleteFile(mmapFile); } catch(e:Dynamic) {}
+        try { if (FileSystem.exists(mmapFile)) FileSystem.deleteFile(mmapFile); } catch(e:Dynamic) {}
     }
 
     static function testProcControl() {
@@ -365,33 +380,46 @@ class Main {
 
     static function testFileLock() {
         trace("--- Testing File Locking ---");
-        var lockFile = "test_lock.dat";
-        var lockId = FileLock.lock(lockFile, true, false);
-        if (lockId != -1) {
-            trace('Lock acquired (ID: ${lockId}).');
-            var secondLockId = FileLock.lock(lockFile, true, false);
-            if (secondLockId == -1) trace("Second lock failed as expected.");
-            FileLock.unlock(lockId);
+        var lockFile = getTestPath("test_lock.dat");
+        var lock = FileLock.lock(lockFile, true, false);
+        if (lock != null) {
+            trace("Lock acquired.");
+            var secondLock = FileLock.lock(lockFile, true, false);
+            if (secondLock == null) trace("Second lock failed as expected.");
+            lock.unlock();
             trace("Lock released.");
-            var thirdLockId = FileLock.lock(lockFile, true, false);
-            if (thirdLockId != -1) { trace("Re-acquisition success."); FileLock.unlock(thirdLockId); }
+            var thirdLock = FileLock.lock(lockFile, true, false);
+            if (thirdLock != null) { trace("Re-acquisition success."); thirdLock.unlock(); }
         } else trace("Failed to acquire initial lock.");
         try { if (FileSystem.exists(lockFile)) FileSystem.deleteFile(lockFile); } catch(e:Dynamic) {}
     }
 
     static function testWatcher() {
         trace("--- Testing File System Watcher ---");
-        var watchPath = "test_watch_dir";
+        var watchPath = getTestPath("test_watch_dir");
         if (!FileSystem.exists(watchPath)) FileSystem.createDirectory(watchPath);
-        Watcher.watch(watchPath, (event) -> {
+        
+        trace('  Starting watch on: ${watchPath}');
+        var started = Watcher.watch(watchPath, (event) -> {
             trace('FS EVENT: Type=${event.type}, Path=${event.path}, isDir=${event.isDir}');
         });
-        var testFile = watchPath + "/test.txt";
-        sys.io.File.saveContent(testFile, "Hello Watcher");
-        Sys.sleep(1);
-        FileSystem.deleteFile(testFile);
-        Sys.sleep(1);
-        Watcher.stopAll();
+        
+        if (started) {
+            trace("  Watcher started.");
+            var testFile = watchPath + "/test.txt";
+            trace("  Creating file...");
+            sys.io.File.saveContent(testFile, "Hello Watcher");
+            Sys.sleep(1);
+            trace("  Deleting file...");
+            FileSystem.deleteFile(testFile);
+            Sys.sleep(1);
+            trace("  Stopping all watchers...");
+            Watcher.stopAll();
+            trace("  Watchers stopped.");
+        } else {
+            trace("  FAILED to start watcher.");
+        }
+        
         try { if (FileSystem.exists(watchPath)) FileSystem.deleteDirectory(watchPath); } catch(e:Dynamic) {}
     }
 

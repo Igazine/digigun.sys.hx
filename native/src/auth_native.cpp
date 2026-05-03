@@ -14,6 +14,7 @@
     #include <shlobj.h>
     #define SECURITY_WIN32
     #include <security.h>
+    #include <userenv.h>
     #pragma comment(lib, "secur32.lib")
     #pragma comment(lib, "advapi32.lib")
     #pragma comment(lib, "userenv.lib")

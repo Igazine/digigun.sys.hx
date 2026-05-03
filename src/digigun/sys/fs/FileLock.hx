@@ -1,33 +1,43 @@
 package digigun.sys.fs;
 
 /**
- * Class for advisory file locking across processes.
+ * Provides advisory file locking capabilities.
  */
 class FileLock {
+    private var handle:Float = -1.0;
+
     /**
-     * Attempts to acquire a lock on a file.
-     * @param path The path to the file to lock.
-     * @param exclusive If true, requests an exclusive lock (for writing). 
-     *                  If false, requests a shared lock (for reading).
-     * @param wait If true, blocks until the lock is acquired.
-     *             If false, returns -1 immediately if the lock is busy.
-     * @return A lock ID (integer) if successful, or -1 if the lock failed or is busy.
+     * Attempts to acquire a lock on the specified file.
+     * @param path File to lock.
+     * @param exclusive True for exclusive lock, false for shared.
+     * @param wait True to wait for the lock, false to fail immediately if busy.
+     * @return FileLock instance or null on failure.
      */
-    public static function lock(path:String, exclusive:Bool = true, wait:Bool = false):Int {
+    public static function lock(path:String, exclusive:Bool = true, wait:Bool = true):FileLock {
         #if cpp
-        return Native.file_lock(path, exclusive ? 1 : 0, wait ? 1 : 0);
+        var res = Native.file_lock(path, exclusive ? 1 : 0, wait ? 1 : 0);
+        if (res != -1.0) {
+            var lock = new FileLock();
+            lock.handle = res;
+            return lock;
+        }
+        return null;
         #else
-        return -1;
+        return null;
         #end
     }
 
     /**
-     * Releases a previously acquired lock.
-     * @param id The lock ID returned by `lock()`.
+     * Releases the file lock.
      */
-    public static function unlock(id:Int):Void {
+    public function unlock():Void {
         #if cpp
-        Native.file_unlock(id);
+        if (handle != -1.0) {
+            Native.file_unlock(handle);
+            handle = -1.0;
+        }
         #end
     }
+
+    private function new() {}
 }

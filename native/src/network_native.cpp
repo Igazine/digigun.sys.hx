@@ -19,6 +19,19 @@
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "ws2_32.lib")
 
+// ICMP structure for Windows (manual definition for raw sockets)
+struct icmp {
+    uint8_t  icmp_type;
+    uint8_t  icmp_code;
+    uint16_t icmp_cksum;
+    uint16_t icmp_id;
+    uint16_t icmp_seq;
+    char     icmp_data[1];
+};
+
+#define ICMP_ECHO 8
+#define ICMP_ECHOREPLY 0
+
 static void ensure_winsock_init() {
     static bool initialized = false;
     if (!initialized) {
@@ -247,7 +260,7 @@ double network_ping(const char* host, int timeout_ms) {
 #endif
     icp.icmp_seq = 1; icp.icmp_cksum = calculate_checksum(&icp, sizeof(icp));
     struct timeval start, end; gettimeofday(&start, NULL);
-    if (sendto(sock, &icp, sizeof(icp), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr)) <= 0) { close(sock); return -1.0; }
+    if (sendto(sock, (const char*)&icp, sizeof(icp), 0, (struct sockaddr*)&dest_addr, sizeof(dest_addr)) <= 0) { close(sock); return -1.0; }
     char buffer[1024]; struct sockaddr_in from_addr; socklen_t from_len = sizeof(from_addr);
     if (recvfrom(sock, buffer, sizeof(buffer), 0, (struct sockaddr*)&from_addr, &from_len) <= 0) { close(sock); return -1.0; }
     gettimeofday(&end, NULL);
@@ -387,8 +400,12 @@ int network_get_constant(const char* name) {
 double ping_session_open() {
 #ifdef _WIN32
     ensure_winsock_init();
-    int sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+    SOCKET sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
     if (sock == INVALID_SOCKET) return 0;
+    
+    // Set non-blocking mode on Windows
+    u_long mode = 1;
+    ioctlsocket(sock, FIONBIO, &mode);
 #else
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
     if (sock < 0) return 0;
@@ -402,7 +419,7 @@ double ping_session_open() {
     fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 #endif
     SessionData* sd = new SessionData();
-    sd->sock = sock;
+    sd->sock = (int)sock;
 
     std::lock_guard<std::mutex> lock(g_session_mutex);
     size_t id = g_next_session_id++;
