@@ -5,7 +5,7 @@ set -e
 haxelib dev digigun.sys.hx .
 
 echo "--- Starting Linux Compilation (Docker) ---"
-haxe -cp src -cp test -main Main -L digigun.sys.hx -cpp bin/linux --debug
+haxe --cwd test build-linux.hxml
 
 echo "--- Running Linux Tests ---"
 ./bin/linux/Main-debug

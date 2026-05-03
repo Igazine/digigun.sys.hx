@@ -1,0 +1,5 @@
+-cp .
+-L digigun.sys.hx
+-main Main
+-cpp ../bin/winarm
+--debug
