@@ -1,12 +1,12 @@
 {
-	"name": "digigun.sys.hx",
-	"url": "https://github.com/igazine/digigun.sys.hx",
-	"license": "MIT",
-	"tags": ["sys", "cpp", "fifo", "unix", "socket", "network"],
-	"description": "System extension library for Haxe (CPP target)",
-	"version": "0.1.0",
-	"classPath": "src",
-	"contributors": ["igazine"],
-	"releasenote": "",
-	"dependencies": {}
+        "name": "digigun.sys.hx",
+        "url": "https://github.com/igazine/digigun.sys.hx",
+        "license": "MIT",
+        "tags": ["sys", "cpp", "fifo", "unix", "socket", "network"],
+        "description": "System extension library for Haxe (CPP target)",
+        "version": "0.2.0",
+        "classPath": "src",
+        "contributors": ["igazine"],
+        "releasenote": "Added Secure Random, Identity, Extended Attributes, and High-Performance Mass Ping.",
+        "dependencies": {}
 }
