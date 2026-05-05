@@ -11,6 +11,7 @@ export/
 *.tmp
 .vscode/
 .gemini/
+export_classes.info
 GEMINI.md
 
 *.code-workspace
