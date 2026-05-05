@@ -3,15 +3,21 @@ package digigun.sys.shm;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
 import digigun.sys.NativeHandle;
+#if cpp
+import cpp.Finalizable;
+#end
 
 /**
  * Class for creating and accessing shared memory segments.
  */
-class SharedMemory {
+class SharedMemory #if cpp extends Finalizable #end {
     private var handle:NativeHandle;
     private var name:String;
 
     public function new() {
+        #if cpp
+        super();
+        #end
         this.handle = NativeHandle.nullHandle();
     }
 
@@ -78,4 +84,10 @@ class SharedMemory {
         if (this.name != null) Native.unlink_segment(this.name);
         #end
     }
+
+    #if cpp
+    override public function finalize():Void {
+        close();
+    }
+    #end
 }

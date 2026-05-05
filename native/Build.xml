@@ -18,6 +18,7 @@
         <file name="${haxelib:digigun.sys.hx}/native/src/io_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/random_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/auth_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/service_native.cpp"/>
     </files>
 
     <files id="haxe">

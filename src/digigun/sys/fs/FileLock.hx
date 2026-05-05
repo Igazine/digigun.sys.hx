@@ -1,9 +1,13 @@
 package digigun.sys.fs;
 
+#if cpp
+import cpp.Finalizable;
+#end
+
 /**
  * Provides advisory file locking capabilities.
  */
-class FileLock {
+class FileLock #if cpp extends Finalizable #end {
     private var handle:Float = -1.0;
 
     /**
@@ -39,5 +43,15 @@ class FileLock {
         #end
     }
 
-    private function new() {}
+    #if cpp
+    override public function finalize():Void {
+        unlock();
+    }
+    #end
+
+    private function new() {
+        #if cpp
+        super();
+        #end
+    }
 }

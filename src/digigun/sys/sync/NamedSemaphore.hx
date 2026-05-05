@@ -1,26 +1,30 @@
 package digigun.sys.sync;
 
-import digigun.sys.NativeHandle;
+#if cpp
+import cpp.Finalizable;
+#end
 
 /**
- * Class for inter-process synchronization using named semaphores.
+ * Class for managing cross-process named semaphores.
  */
-class NamedSemaphore {
-    private var handle:NativeHandle;
+class NamedSemaphore #if cpp extends Finalizable #end {
+    private var handle:Float = 0.0;
     private var name:String;
 
     public function new() {
-        this.handle = NativeHandle.nullHandle();
+        #if cpp
+        super();
+        #end
     }
 
     /**
      * Opens or creates a named semaphore.
      */
-    public function open(name:String, initialValue:Int = 1):Bool {
+    public function open(name:String, initialValue:Int):Bool {
         #if cpp
         this.name = name;
-        this.handle = new NativeHandle(Native.sem_open(name, initialValue));
-        return this.handle.isValid;
+        this.handle = Native.sem_open(name, initialValue);
+        return this.handle != 0.0;
         #else
         return false;
         #end
@@ -31,8 +35,8 @@ class NamedSemaphore {
      */
     public function wait():Bool {
         #if cpp
-        if (!this.handle.isValid) return false;
-        return Native.sem_wait(this.handle.value) == 0;
+        if (this.handle == 0.0) return false;
+        return Native.sem_wait(this.handle) == 0;
         #else
         return false;
         #end
@@ -43,8 +47,8 @@ class NamedSemaphore {
      */
     public function post():Bool {
         #if cpp
-        if (!this.handle.isValid) return false;
-        return Native.sem_post(this.handle.value) == 0;
+        if (this.handle == 0.0) return false;
+        return Native.sem_post(this.handle) == 0;
         #else
         return false;
         #end
@@ -55,25 +59,37 @@ class NamedSemaphore {
      */
     public function tryWait():Bool {
         #if cpp
-        if (!this.handle.isValid) return false;
-        return Native.sem_trywait(this.handle.value) == 0;
+        if (this.handle == 0.0) return false;
+        return Native.sem_trywait(this.handle) == 0;
         #else
         return false;
         #end
     }
 
+    /**
+     * Closes the semaphore handle.
+     */
     public function close():Void {
         #if cpp
-        if (this.handle.isValid) {
-            Native.sem_close(this.handle.value);
-            this.handle = NativeHandle.nullHandle();
+        if (this.handle != 0.0) {
+            Native.sem_close(this.handle);
+            this.handle = 0.0;
         }
         #end
     }
 
+    /**
+     * Unlinks (deletes) the named semaphore from the system.
+     */
     public function unlink():Void {
         #if cpp
         if (this.name != null) Native.sem_unlink(this.name);
         #end
     }
+
+    #if cpp
+    override public function finalize():Void {
+        close();
+    }
+    #end
 }

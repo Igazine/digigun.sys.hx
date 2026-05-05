@@ -47,7 +47,7 @@ class UnixDomainSocket implements ISocket {
         #if cpp
         if (!this.handle.isValid) return null;
         var clientVal = Native.socket_accept(this.handle.value);
-        if (clientVal == (cast -2 : cpp.SizeT)) throw haxe.io.Error.Blocked;
+        if (untyped __cpp__("{0} == (size_t)-2", clientVal)) throw haxe.io.Error.Blocked;
         var clientHandle = new NativeHandle(clientVal);
         if (!clientHandle.isValid) return null;
         return new UnixDomainSocket(clientHandle);

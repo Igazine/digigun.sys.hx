@@ -114,7 +114,11 @@ NativeIP* network_get_host_info(const char* host) {
         else addr = &(((struct sockaddr_in6*)p->ai_addr)->sin6_addr);
         inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
         NativeIP* node = (NativeIP*)malloc(sizeof(NativeIP));
-        if (!node) { network_free_host_info(head); freeaddrinfo(res); return NULL; }
+        if (!node) { 
+            if (head) network_free_host_info(head); 
+            freeaddrinfo(res); 
+            return NULL; 
+        }
         strncpy(node->ip, ipstr, 255); node->ip[255] = '\0'; node->next = NULL;
         if (!head) head = node;
         if (tail) tail->next = node;
@@ -145,7 +149,11 @@ NativeInterface* network_get_interfaces() {
     NativeInterface* head = NULL; NativeInterface* tail = NULL;
     for (PIP_ADAPTER_ADDRESSES pCurr = pAddresses; pCurr != NULL; pCurr = pCurr->Next) {
         NativeInterface* ni = (NativeInterface*)malloc(sizeof(NativeInterface));
-        if (!ni) { network_free_interfaces(head); free(pAddresses); return NULL; }
+        if (!ni) { 
+            if (head) network_free_interfaces(head); 
+            free(pAddresses); 
+            return NULL; 
+        }
         memset(ni, 0, sizeof(NativeInterface));
         WideCharToMultiByte(CP_ACP, 0, pCurr->FriendlyName, -1, ni->name, 255, NULL, NULL);
         ni->flags = 0;
@@ -179,7 +187,11 @@ NativeInterface* network_get_interfaces() {
         while (curr) { if (strcmp(curr->name, ifa->ifa_name) == 0) { ni = curr; break; } curr = curr->next; }
         if (!ni) {
             ni = (NativeInterface*)malloc(sizeof(NativeInterface));
-            if (!ni) { network_free_interfaces(head); freeifaddrs(ifaddr); return NULL; }
+            if (!ni) { 
+                if (head) network_free_interfaces(head); 
+                freeifaddrs(ifaddr); 
+                return NULL; 
+            }
             memset(ni, 0, sizeof(NativeInterface));
             strncpy(ni->name, ifa->ifa_name, 255); ni->flags = ifa->ifa_flags; ni->next = NULL;
             if (!head) head = ni; if (tail) tail->next = ni; tail = ni;
@@ -308,6 +320,11 @@ NativeArpEntry* network_get_arp_table() {
         char ip[64], hw[64], flags[64], mac[64], mask[64], dev[64];
         if (sscanf(line, "%s %s %s %s %s %s", ip, hw, flags, mac, mask, dev) == 6) {
             NativeArpEntry* node = (NativeArpEntry*)malloc(sizeof(NativeArpEntry));
+            if (!node) {
+                if (head) network_free_arp_table(head);
+                fclose(f);
+                return NULL;
+            }
             memset(node, 0, sizeof(NativeArpEntry));
             strncpy(node->ip, ip, 255); strncpy(node->mac, mac, 255); strncpy(node->interface_name, dev, 255);
             if (!head) head = node; else tail->next = node; tail = node;
@@ -328,6 +345,11 @@ NativeArpEntry* network_get_arp_table() {
         sdl = (struct sockaddr_dl *)(sin + 1);
         if (sdl->sdl_alen) {
             NativeArpEntry* node = (NativeArpEntry*)malloc(sizeof(NativeArpEntry));
+            if (!node) {
+                if (head) network_free_arp_table(head);
+                free(buf);
+                return NULL;
+            }
             memset(node, 0, sizeof(NativeArpEntry));
             inet_ntop(AF_INET, &sin->sin_addr, node->ip, sizeof(node->ip));
             unsigned char* ptr = (unsigned char *)LLADDR(sdl);

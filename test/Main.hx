@@ -19,6 +19,7 @@ import digigun.sys.signal.Signal;
 import digigun.sys.rt.RtControl;
 import digigun.sys.random.Random;
 import digigun.sys.auth.Auth;
+import digigun.sys.service.Service;
 import sys.FileSystem;
 
 class Main {
@@ -30,11 +31,22 @@ class Main {
         }
         return "C:\\temp\\" + name;
         #else
-        return name;
+        return "/tmp/" + name;
         #end
     }
 
     static function main() {
+        #if windows
+        untyped __cpp__('
+            {
+                FILE* f = fopen("C:\\\\service.log", "a");
+                if (f) {
+                    fprintf(f, "[HAXE] main() entered. PID: %d\\n", GetCurrentProcessId());
+                    fclose(f);
+                }
+            }
+        ');
+        #end
         // Check for Windows fork emulation flag
         var args = Sys.args();
         if (args.indexOf("--digigun-child-fork") != -1) {
@@ -45,6 +57,39 @@ class Main {
 
         trace("digigun.sys.hx Functional Test Suite");
         trace('Current PID: ${Process.getId()}');
+
+        if (args.indexOf("--service-test") != -1) {
+            trace("--- System Service Handshake Test ---");
+            #if windows
+            // On Windows, this call BLOCKs and starts the SCM handshake
+            var result = Service.run("DigigunTestService", () -> {
+                trace("  [SCM] Service Started Callback triggered.");
+                // Start a background thread to do "work" and then exit
+                sys.thread.Thread.create(() -> {
+                    Sys.sleep(3);
+                    trace("  [SCM] Work complete, exiting process...");
+                    Sys.exit(0); 
+                });
+            }, () -> {
+                trace("  [SCM] Service Stop Callback triggered.");
+            });
+            if (result != 0) trace('  [SCM] Service.run FAILED with code: ${result}');
+            Sys.exit(0);
+            #else
+            if (Service.isAvailable()) {
+                trace("  [systemd] Sending READY=1 signal...");
+                Service.notify(Service.READY);
+                trace("  Signal sent. Waiting 5 seconds before exit...");
+                Sys.sleep(5);
+                trace("  Stopping service...");
+                Service.notify(Service.STOPPING);
+                Sys.exit(0);
+            } else {
+                trace("  Service manager not detected.");
+                Sys.exit(1);
+            }
+            #end
+        }
 
         // Basic Info & Time
         testSystemInfo();
@@ -83,6 +128,7 @@ class Main {
         // Network
         testNetwork();
         testSendFile();
+        testService();
 
         if (args.indexOf("--tui") != -1) {
             testConsoleTUI();
@@ -221,7 +267,7 @@ class Main {
 
     static function testNonBlockingFifo() {
         trace("--- Testing Non-blocking I/O (Socket) ---");
-        var socketPath = "haxe_socket_nb_test";
+        var socketPath = getTestPath("haxe_socket_nb_test");
         try { if (FileSystem.exists(socketPath)) FileSystem.deleteFile(socketPath); } catch(e:Dynamic) {}
         
         var server = UnixDomainSocket.create();
@@ -243,7 +289,7 @@ class Main {
 
     static function testSelector() {
         trace("--- Testing Selector ---");
-        var socketPath = "haxe_sel_test_sock";
+        var socketPath = getTestPath("haxe_sel_test_sock");
         try { if (FileSystem.exists(socketPath)) FileSystem.deleteFile(socketPath); } catch(e:Dynamic) {}
         
         var s1 = UnixDomainSocket.create();
@@ -381,6 +427,9 @@ class Main {
     static function testFileLock() {
         trace("--- Testing File Locking ---");
         var lockFile = getTestPath("test_lock.dat");
+        // Ensure file exists for flock
+        if (!sys.FileSystem.exists(lockFile)) sys.io.File.saveContent(lockFile, "lock data");
+
         var lock = FileLock.lock(lockFile, true, false);
         if (lock != null) {
             trace("Lock acquired.");
@@ -619,7 +668,7 @@ class Main {
     }
 
     static function testUnixDomainSocket() {
-        var socketPath = "haxe_socket_test";
+        var socketPath = getTestPath("haxe_socket_test");
         try { if (FileSystem.exists(socketPath)) FileSystem.deleteFile(socketPath); } catch(e:Dynamic) {}
         var server = UnixDomainSocket.create();
         trace("Testing Unix Domain Socket bind at: " + socketPath);
@@ -632,7 +681,13 @@ class Main {
 
     static function testExtendedAttributes() {
         trace("--- Testing Extended Attributes (xattr / ADS) ---");
-        var testFile = "test_xattr.dat";
+        // Use home directory instead of /tmp as tmpfs often lacks xattr support
+        var testFile = getTestPath("test_xattr.dat");
+        #if !windows
+        var home = Sys.getEnv("HOME");
+        if (home != null && home != "") testFile = home + "/test_xattr.dat";
+        #end
+        
         sys.io.File.saveContent(testFile, "Extended Attributes test content");
 
         var attrName = "test_attr";
@@ -684,5 +739,26 @@ class Main {
         }
 
         try { if (sys.FileSystem.exists(testFile)) sys.FileSystem.deleteFile(testFile); } catch(e:Dynamic) {}
+    }
+
+    static function testService() {
+        trace("--- Testing System Service Integration ---");
+        trace('  Service available: ${Service.isAvailable()}');
+        
+        // Mocking for testing if not a service
+        var mockSocket = "/tmp/mock_systemd_socket";
+        #if !windows
+        if (!Service.isAvailable()) {
+            trace("  Service not detected, attempting to mock NOTIFY_SOCKET...");
+            // We can't easily create a listening Unix DGRAM socket in pure Haxe 
+            // but we can at least check if the notify() code attempts to send.
+            Sys.putEnv("NOTIFY_SOCKET", mockSocket);
+            var success = Service.notify(Service.READY);
+            trace('  Notify READY (mocked): ${success} (Expected false as no receiver exists)');
+        } else {
+            var success = Service.notify(Service.READY);
+            trace('  Notify READY: ${success}');
+        }
+        #end
     }
 }

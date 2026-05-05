@@ -5,6 +5,8 @@
 #include <mutex>
 #include <atomic>
 #include <cstring>
+#include <map>
+#include <functional>
 
 #include <hxcpp.h>
 
@@ -30,12 +32,13 @@ static std::string wstring_to_utf8(const std::wstring& wstr) {
 }
 #else
 #include <sys/types.h>
-#include <sys/socket.h>
+#include <sys/stat.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/file.h>
 #include <sys/mman.h>
 #include <sys/xattr.h>
+#include <unistd.h>
 #ifdef __APPLE__
 #include <CoreServices/CoreServices.h>
 #else
@@ -43,100 +46,212 @@ static std::string wstring_to_utf8(const std::wstring& wstr) {
 #endif
 #endif
 
-extern "C" {
-
-/**
- * Native File System implementation.
- */
+// --- Global Watcher State ---
+static std::atomic<bool> g_watch_active(false);
+static FSEventCallback g_current_callback = nullptr;
+static std::thread* g_watch_thread = nullptr;
 
 #ifdef _WIN32
-struct WatchData {
-    HANDLE handle;
-    char path_utf8[MAX_PATH];
-    FSEventCallback callback;
-    bool recursive;
-    std::atomic<bool> active;
-    uint8_t buffer[4096];
-};
+static HANDLE g_win_dir_handle = INVALID_HANDLE_VALUE;
+static HANDLE g_win_stop_event = INVALID_HANDLE_VALUE;
+#endif
 
-static std::vector<WatchData*> g_watches;
-static std::mutex g_watch_mutex;
+static void trigger_callback(const char* path, int type, int isDir) {
+    if (g_current_callback) {
+        hx::NativeAttach autoAttach;
+        g_current_callback(path, type, isDir);
+    }
+}
 
-static void win32_watch_thread(WatchData* wd) {
-    while (wd->active) {
-        DWORD bytesRead = 0;
-        if (ReadDirectoryChangesW(wd->handle, wd->buffer, sizeof(wd->buffer), wd->recursive,
-                                 FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_CREATION,
-                                 &bytesRead, NULL, NULL)) {
-            if (bytesRead > 0 && wd->callback && wd->active) {
-                FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)wd->buffer;
-                do {
+#ifdef _WIN32
+static void win_watch_thread_proc(std::string path) {
+    g_win_dir_handle = CreateFileA(path.c_str(), FILE_LIST_DIRECTORY, 
+                             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                             NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
+    if (g_win_dir_handle == INVALID_HANDLE_VALUE) return;
+
+    OVERLAPPED overlapped;
+    memset(&overlapped, 0, sizeof(overlapped));
+    overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+    char buffer[4096];
+    DWORD bytesReturned;
+
+    HANDLE waitHandles[2] = { overlapped.hEvent, g_win_stop_event };
+
+    while (g_watch_active) {
+        if (!ReadDirectoryChangesW(g_win_dir_handle, buffer, sizeof(buffer), TRUE,
+                                  FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_CREATION,
+                                  &bytesReturned, &overlapped, NULL)) {
+            break;
+        }
+
+        DWORD waitRes = WaitForMultipleObjects(2, waitHandles, FALSE, INFINITE);
+        if (waitRes == WAIT_OBJECT_0 + 1) { // Stop event
+            CancelIo(g_win_dir_handle);
+            break;
+        }
+
+        if (waitRes == WAIT_OBJECT_0) { // I/O event
+            if (GetOverlappedResult(g_win_dir_handle, &overlapped, &bytesReturned, TRUE)) {
+                char* ptr = buffer;
+                while (true) {
+                    FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)ptr;
+                    
+                    int nameLen = fni->FileNameLength / sizeof(WCHAR);
+                    int size_needed = WideCharToMultiByte(CP_UTF8, 0, fni->FileName, nameLen, NULL, 0, NULL, NULL);
+                    std::string filename(size_needed, 0);
+                    WideCharToMultiByte(CP_UTF8, 0, fni->FileName, nameLen, &filename[0], size_needed, NULL, NULL);
+
                     int type = FS_EVENT_MODIFIED;
-                    switch(fni->Action) {
+                    switch (fni->Action) {
                         case FILE_ACTION_ADDED: type = FS_EVENT_CREATED; break;
                         case FILE_ACTION_REMOVED: type = FS_EVENT_DELETED; break;
                         case FILE_ACTION_MODIFIED: type = FS_EVENT_MODIFIED; break;
                         case FILE_ACTION_RENAMED_OLD_NAME: type = FS_EVENT_RENAMED; break;
                         case FILE_ACTION_RENAMED_NEW_NAME: type = FS_EVENT_RENAMED; break;
                     }
+
+                    std::string fullPath = path + "/" + filename;
                     
-                    int nameLen = fni->FileNameLength / sizeof(WCHAR);
-                    int size_needed = WideCharToMultiByte(CP_UTF8, 0, fni->FileName, nameLen, NULL, 0, NULL, NULL);
-                    std::string filename(size_needed, 0);
-                    WideCharToMultiByte(CP_UTF8, 0, fni->FileName, nameLen, &filename[0], size_needed, NULL, NULL);
-                    
-                    std::string full_path = std::string(wd->path_utf8) + "/" + filename;
-                    wd->callback(full_path.c_str(), type, 0);
-                    
+                    // Simple directory check
+                    int isDir = 0;
+                    DWORD attr = GetFileAttributesA(fullPath.c_str());
+                    if (attr != INVALID_FILE_ATTRIBUTES) isDir = (attr & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 0;
+
+                    trigger_callback(fullPath.c_str(), type, isDir);
+
                     if (fni->NextEntryOffset == 0) break;
-                    fni = (FILE_NOTIFY_INFORMATION*)((uint8_t*)fni + fni->NextEntryOffset);
-                } while(true);
+                    ptr += fni->NextEntryOffset;
+                }
             }
-        } else {
-            if (GetLastError() == ERROR_OPERATION_ABORTED) break;
-            Sleep(100);
+            ResetEvent(overlapped.hEvent);
+        } else break;
+    }
+
+    CloseHandle(overlapped.hEvent);
+    CloseHandle(g_win_dir_handle);
+    g_win_dir_handle = INVALID_HANDLE_VALUE;
+}
+#elif defined(__APPLE__)
+static void mac_callback(ConstFSEventStreamRef streamRef, void *clientCallBackInfo, size_t numEvents, void *eventPaths, const FSEventStreamEventFlags eventFlags[], const FSEventStreamEventId eventIds[]) {
+    char **paths = (char **)eventPaths;
+    for (size_t i = 0; i < numEvents; i++) {
+        int type = 0;
+        if (eventFlags[i] & kFSEventStreamEventFlagItemCreated) type = FS_EVENT_CREATED;
+        else if (eventFlags[i] & kFSEventStreamEventFlagItemRemoved) type = FS_EVENT_DELETED;
+        else if (eventFlags[i] & kFSEventStreamEventFlagItemRenamed) type = FS_EVENT_RENAMED;
+        else if (eventFlags[i] & kFSEventStreamEventFlagItemModified) type = FS_EVENT_MODIFIED;
+        if (type != 0) {
+            bool isDir = (eventFlags[i] & kFSEventStreamEventFlagItemIsDir) != 0;
+            trigger_callback(paths[i], type, isDir ? 1 : 0);
         }
     }
 }
+static void mac_watch_thread_proc(std::string path) {
+    CFStringRef cfPath = CFStringCreateWithCString(NULL, path.c_str(), kCFStringEncodingUTF8);
+    CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)&cfPath, 1, NULL);
+    FSEventStreamContext context = {0, NULL, NULL, NULL, NULL};
+    FSEventStreamRef stream = FSEventStreamCreate(NULL, &mac_callback, &context, pathsToWatch, kFSEventStreamEventIdSinceNow, 0.1, kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer);
+    FSEventStreamScheduleWithRunLoop(stream, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+    FSEventStreamStart(stream);
+    while (g_watch_active) CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.1, false);
+    FSEventStreamStop(stream); FSEventStreamInvalidate(stream); FSEventStreamRelease(stream);
+    CFRelease(pathsToWatch); CFRelease(cfPath);
+}
+#else
+static void linux_watch_thread_proc(std::string path) {
+    int fd = inotify_init(); if (fd < 0) return;
+    std::map<int, std::string> watch_map;
+    
+    std::function<void(const std::string&)> add_recursive = [&](const std::string& p) {
+        int wd = inotify_add_watch(fd, p.c_str(), IN_CREATE | IN_DELETE | IN_MODIFY | IN_MOVE);
+        if (wd != -1) watch_map[wd] = p;
+        
+        DIR* dir = opendir(p.c_str());
+        if (!dir) return;
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (entry->d_type == DT_DIR) {
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+                add_recursive(p + "/" + entry->d_name);
+            }
+        }
+        closedir(dir);
+    };
+
+    add_recursive(path);
+    char buffer[4096];
+    while (g_watch_active) {
+        struct timeval tv = {0, 100000}; // 100ms timeout
+        fd_set rfds; FD_ZERO(&rfds); FD_SET(fd, &rfds);
+        if (select(fd + 1, &rfds, NULL, NULL, &tv) <= 0) continue;
+
+        int length = read(fd, buffer, sizeof(buffer));
+        if (length < 0) break;
+        int i = 0;
+        while (i < length) {
+            struct inotify_event* event = (struct inotify_event*)&buffer[i];
+            if (event->len) {
+                int type = 0;
+                if (event->mask & IN_CREATE) type = FS_EVENT_CREATED;
+                else if (event->mask & IN_DELETE) type = FS_EVENT_DELETED;
+                else if (event->mask & IN_MODIFY) type = FS_EVENT_MODIFIED;
+                else if (event->mask & (IN_MOVED_FROM | IN_MOVED_TO)) type = FS_EVENT_RENAMED;
+                
+                if (type != 0) {
+                    std::string fullPath = watch_map[event->wd] + "/" + event->name;
+                    if (event->mask & IN_ISDIR && event->mask & IN_CREATE) add_recursive(fullPath);
+                    trigger_callback(fullPath.c_str(), type, (event->mask & IN_ISDIR) ? 1 : 0);
+                }
+            }
+            i += sizeof(struct inotify_event) + event->len;
+        }
+    }
+    for (auto const& [wd, p] : watch_map) inotify_rm_watch(fd, wd);
+    close(fd);
+}
 #endif
+
+extern "C" {
 
 int fs_watch_start(const char* path, FSEventCallback callback) {
+    if (g_watch_active) return 0;
+    g_current_callback = callback; g_watch_active = true;
 #ifdef _WIN32
-    std::wstring wpath = utf8_to_wstring(path);
-    HANDLE hDir = CreateFileW(wpath.c_str(), FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                             NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
-    if (hDir == INVALID_HANDLE_VALUE) return -1;
-
-    WatchData* wd = new WatchData();
-    wd->handle = hDir;
-    wd->active = true;
-    strncpy(wd->path_utf8, path, MAX_PATH);
-    wd->callback = callback;
-    wd->recursive = true;
-    
-    std::lock_guard<std::mutex> lock(g_watch_mutex);
-    g_watches.push_back(wd);
-    
-    std::thread t(win32_watch_thread, wd);
-    t.detach();
-    return (int)g_watches.size();
-#else
-    return -1;
+    g_win_stop_event = CreateEvent(NULL, TRUE, FALSE, NULL);
 #endif
+    std::string watch_path(path);
+#ifdef _WIN32
+    g_watch_thread = new std::thread(win_watch_thread_proc, watch_path);
+#elif defined(__APPLE__)
+    g_watch_thread = new std::thread(mac_watch_thread_proc, watch_path);
+#else
+    g_watch_thread = new std::thread(linux_watch_thread_proc, watch_path);
+#endif
+    return 1;
 }
 
 void fs_watch_stop_all() {
+    if (!g_watch_active) return;
+    g_watch_active = false;
 #ifdef _WIN32
-    std::lock_guard<std::mutex> lock(g_watch_mutex);
-    for (auto wd : g_watches) {
-        wd->active = false;
-        CancelIoEx(wd->handle, NULL);
-        CloseHandle(wd->handle);
+    SetEvent(g_win_stop_event);
+#endif
+    if (g_watch_thread) {
+        if (g_watch_thread->joinable()) g_watch_thread->join();
+        delete g_watch_thread;
+        g_watch_thread = nullptr;
     }
-    g_watches.clear();
+#ifdef _WIN32
+    if (g_win_stop_event != INVALID_HANDLE_VALUE) {
+        CloseHandle(g_win_stop_event);
+        g_win_stop_event = INVALID_HANDLE_VALUE;
+    }
 #endif
 }
 
+// File Locking
 double fs_file_lock(const char* path, int exclusive, int wait) {
 #ifdef _WIN32
     std::wstring wpath = utf8_to_wstring(path);
@@ -203,14 +318,14 @@ double fs_mmap_open(const char* path, int size, int writable) {
                               FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == INVALID_HANDLE_VALUE) return -1.0;
 
-    HANDLE hMap = CreateFileMappingA(hFile, NULL, writable ? PAGE_READWRITE : PAGE_READONLY, 0, size, NULL);
+    HANDLE hMap = CreateFileMappingA(hFile, NULL, writable ? PAGE_READWRITE : PAGE_READONLY, 0, (DWORD)size, NULL);
     if (!hMap) { CloseHandle(hFile); return -1.0; }
 
     void* ptr = MapViewOfFile(hMap, writable ? FILE_MAP_WRITE : FILE_MAP_READ, 0, 0, size);
     if (!ptr) { CloseHandle(hMap); CloseHandle(hFile); return -1.0; }
 
     g_mmaps[id].ptr = ptr;
-    g_mmaps[id].size = size;
+    g_mmaps[id].size = (size_t)size;
     g_mmaps[id].hFile = hFile;
     g_mmaps[id].hMap = hMap;
     g_mmaps[id].active = true;
@@ -224,7 +339,7 @@ double fs_mmap_open(const char* path, int size, int writable) {
     if (ptr == MAP_FAILED) return -1.0;
 
     g_mmaps[id].ptr = ptr;
-    g_mmaps[id].size = size;
+    g_mmaps[id].size = (size_t)size;
     g_mmaps[id].active = true;
     return (double)id;
 #endif
@@ -246,7 +361,7 @@ void fs_mmap_close(double id) {
 int fs_mmap_read(double id, int offset, char* buffer, int length) {
     int idx = (int)id;
     if (idx <= 0 || idx >= 1024 || !g_mmaps[idx].active) return -1;
-    if (offset + (size_t)length > g_mmaps[idx].size) length = (int)g_mmaps[idx].size - offset;
+    if (offset + (size_t)length > g_mmaps[idx].size) length = (int)(g_mmaps[idx].size - offset);
     if (length <= 0) return 0;
     memcpy(buffer, (char*)g_mmaps[idx].ptr + offset, length);
     return length;
@@ -255,7 +370,7 @@ int fs_mmap_read(double id, int offset, char* buffer, int length) {
 int fs_mmap_write(double id, int offset, const char* buffer, int length) {
     int idx = (int)id;
     if (idx <= 0 || idx >= 1024 || !g_mmaps[idx].active) return -1;
-    if (offset + (size_t)length > g_mmaps[idx].size) length = (int)g_mmaps[idx].size - offset;
+    if (offset + (size_t)length > g_mmaps[idx].size) length = (int)(g_mmaps[idx].size - offset);
     if (length <= 0) return 0;
     memcpy((char*)g_mmaps[idx].ptr + offset, buffer, length);
     return length;
@@ -265,7 +380,7 @@ void fs_mmap_flush(double id) {
     int idx = (int)id;
     if (idx <= 0 || idx >= 1024 || !g_mmaps[idx].active) return;
 #ifdef _WIN32
-    FlushViewOfFile(g_mmaps[idx].ptr, g_mmaps[idx].size);
+    FlushViewOfFile(g_mmaps[idx].ptr, (SIZE_T)g_mmaps[idx].size);
 #else
     msync(g_mmaps[idx].ptr, g_mmaps[idx].size, MS_SYNC);
 #endif

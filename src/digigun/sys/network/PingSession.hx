@@ -1,12 +1,15 @@
 package digigun.sys.network;
 
 import cpp.Pointer;
+#if cpp
+import cpp.Finalizable;
+#end
 
 /**
  * High-performance ping session for simultaneous multi-target pinging.
  * Uses a single persistent raw ICMP socket.
  */
-class PingSession {
+class PingSession #if cpp extends Finalizable #end {
     private var handle:Float = 0;
     private var seqMap:Map<Int, String>;
     private var nextSeq:Int = 1;
@@ -16,6 +19,7 @@ class PingSession {
      */
     public function new() {
         #if cpp
+        super();
         this.handle = cast Native.ping_session_open();
         this.seqMap = new Map<Int, String>();
         #end
@@ -87,4 +91,10 @@ class PingSession {
         }
         #end
     }
+
+    #if cpp
+    override public function finalize():Void {
+        close();
+    }
+    #end
 }

@@ -157,6 +157,11 @@ struct NativeGroupInfo* auth_get_groups() {
     struct group* gr;
     while ((gr = getgrent()) != NULL) {
         struct NativeGroupInfo* info = (struct NativeGroupInfo*)malloc(sizeof(struct NativeGroupInfo));
+        if (!info) {
+            if (head) auth_free_groups(head);
+            endgrent();
+            return NULL;
+        }
         info->gid = (int)gr->gr_gid;
         info->name = safe_strdup(gr->gr_name);
         info->next = NULL;

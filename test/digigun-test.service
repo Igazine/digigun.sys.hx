@@ -1,0 +1,13 @@
+[Unit]
+Description=Digigun Sys Test Service
+After=network.target
+
+[Service]
+Type=notify
+ExecStart=/media/psf/Work/github/digigun/digigun.sys.hx/bin/linux/Main-debug --service-test
+WorkingDirectory=/tmp
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
