@@ -28,6 +28,9 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - **TUI/Console**: Low-level terminal control and block writing.
 - **Secure Random**: CSPRNG and UUID v4 support.
 - **Identity & Credentials**: Access to system user and group metadata.
+- **System Service Integration**: Integration with `systemd` (sd_notify) and Windows SCM.
+- **Dynamic Symbol Loading**: Runtime loading of shared libraries (.dylib, .so, .dll) and symbol resolution.
+- **FFI Infrastructure**: Stable C-ABI for consumption by other languages (Python, Rust, Node.js).
 
 ## Status Legend
 
@@ -113,9 +116,18 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] `setXAttr()` - Set extended file attribute ✅
 - [x] `listXAttrs()` - List extended file attributes ✅
 
-### System Service Integration (`digigun.sys.service`) 🚧
-- [ ] `notify()` - systemd/SCM status reporting ⏳
-- [ ] `isService()` - Check if running as a daemon ⏳
+### System Service Integration (`digigun.sys.service`) ✅
+- [x] `notify()` - systemd `sd_notify` support verified on Linux ✅
+- [x] `run()` - Initial Windows SCM implementation ✅
+
+### Dynamic Symbol Loading (`digigun.sys.dl`) ✅
+- [x] `open()` - Load shared libraries (.so, .dylib, .dll) ✅
+- [x] `getSymbol()` - Resolve function pointers at runtime ✅
+- [x] `toTypedCallable()` - Call dynamic symbols with full Haxe type safety ✅
+
+### Future / Research ⏳
+- [ ] `io_uring` / `IOCP` - Advanced high-performance I/O ⏳
+- [ ] Platform-specific native event loops ⏳
 
 > **Note for Linux:** Extended attributes (xattr) require a supporting filesystem (e.g., ext4, xfs, btrfs) mounted with `user_xattr` support. Standard Docker `overlayfs` may not support the `user.` namespace used by this library.
 
@@ -126,6 +138,23 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 ```bash
 haxelib git digigun.sys.hx https://github.com/igazine/digigun.sys.hx
 ```
+
+## FFI Library Generation
+
+This library can be compiled into platform-specific shared libraries for use in other languages (Python, Rust, Node.js, etc.).
+
+```bash
+# Generate macOS .dylib
+haxe test/build-lib-mac.hxml
+
+# Generate Linux .so
+haxe test/build-lib-linux.hxml
+
+# Generate Windows .dll
+haxe test/build-lib-win-arm.hxml
+```
+
+The resulting libraries use a stable C-ABI via the `DIGIGUN_API` export macro and a robust `Int64` handle architecture.
 
 ## Target Operating Systems
 
