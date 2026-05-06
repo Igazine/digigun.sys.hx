@@ -20,6 +20,7 @@ import digigun.sys.rt.RtControl;
 import digigun.sys.random.Random;
 import digigun.sys.auth.Auth;
 import digigun.sys.service.Service;
+import digigun.sys.dl.Dl;
 import sys.FileSystem;
 
 class Main {
@@ -129,6 +130,7 @@ class Main {
         testNetwork();
         testSendFile();
         testService();
+        testDl();
 
         if (args.indexOf("--tui") != -1) {
             testConsoleTUI();
@@ -759,5 +761,55 @@ class Main {
             trace('  Notify READY: ${success}');
         }
         #end
+    }
+
+    static function testDl() {
+        trace("--- Testing Dynamic Symbol Loading ---");
+        
+        // We first need to build the library if it doesn't exist
+        var libName = "output.dylib";
+        #if linux libName = "output.so"; #end
+        #if windows libName = "output.dll"; #end
+        
+        var libPath = "bin/lib/mac/" + libName; // Default for mac
+        #if linux libPath = "bin/lib/linux/" + libName; #end
+        #if windows libPath = "bin/lib/winarm/" + libName; #end
+        
+        // Ensure library exists
+        if (!FileSystem.exists(libPath)) {
+            trace('  Library not found at ${libPath}. Please run library build first.');
+            return;
+        }
+        
+        trace('  Loading library: ${libPath}');
+        var lib = Dl.open(libPath);
+        if (lib.isValid) {
+            trace("  Library loaded successfully.");
+            
+            var symbolName = "network_get_interfaces";
+            trace('  Finding symbol: ${symbolName}');
+            var symbol = Dl.getSymbol(lib, symbolName);
+            
+            if (symbol.isValid) {
+                trace("  Symbol found! (Raw Address: " + symbol.value + ")");
+                
+                // Advanced: Attempt to call a simple function
+                try {
+                    // signature: int process_get_id();
+                    var getPid: () -> Int = symbol.toTypedCallable();
+                    var res = getPid();
+                    trace('  Call verification: SUCCESS (Returned PID: ${res})');
+                } catch(e:Dynamic) {
+                    trace("  Call verification: FAILED - " + e);
+                }
+            } else {
+                trace("  Symbol NOT found. Error: " + Dl.getError());
+            }
+            
+            Dl.close(lib);
+            trace("  Library unloaded.");
+        } else {
+            trace("  FAILED to load library. Error: " + Dl.getError());
+        }
     }
 }

@@ -19,6 +19,7 @@
         <file name="${haxelib:digigun.sys.hx}/native/src/random_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/auth_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/service_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/dl_native.cpp"/>
     </files>
 
     <files id="haxe">
@@ -35,6 +36,7 @@
         <lib name="bcrypt.lib" if="windows"/>
         <lib name="netapi32.lib" if="windows"/>
         <lib name="-lrt" if="linux"/>
+        <lib name="-ldl" if="linux"/>
         <linkerflag value="-framework" if="macos"/>
         <linkerflag value="CoreServices" if="macos"/>
     </target>

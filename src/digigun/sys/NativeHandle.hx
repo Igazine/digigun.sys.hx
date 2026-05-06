@@ -44,6 +44,14 @@ class NativeHandle {
     public static function fromVoidPtr(ptr:cpp.RawPointer<cpp.Void>):NativeHandle {
         return new NativeHandle(untyped __cpp__("(long long)(size_t){0}", ptr));
     }
+
+    /**
+     * Internal helper to convert a raw address into a typed Callable.
+     * This is intended for use with Dynamic Symbol Loading.
+     */
+    public function toTypedCallable<T>():T {
+        return untyped __cpp__("(void*){0}", value);
+    }
 }
 #else
 class NativeHandle {

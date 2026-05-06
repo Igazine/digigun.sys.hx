@@ -18,14 +18,14 @@
 
 extern "C" {
 
-long long io_sendfile(double out_handle, const char* path, long long offset, long long length) {
+long long io_sendfile(long long out_handle, const char* path, long long offset, long long length) {
 #ifdef _WIN32
     // Windows implementation using TransmitFile or fallback
     HANDLE hOut = (HANDLE)(size_t)out_handle;
     HANDLE hIn = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hIn == INVALID_HANDLE_VALUE) return -1;
 
-    LARGE_HINTEGER liOffset;
+    LARGE_INTEGER liOffset;
     liOffset.QuadPart = offset;
     OVERLAPPED overlapped = {0};
     overlapped.Offset = liOffset.LowPart;
@@ -55,7 +55,7 @@ long long io_sendfile(double out_handle, const char* path, long long offset, lon
 #endif
 }
 
-int io_set_direct_io(double handle, int enabled) {
+int io_set_direct_io(long long handle, int enabled) {
 #ifdef _WIN32
     // Windows handle flags cannot be changed after creation easily
     return -1;
@@ -68,20 +68,20 @@ int io_set_direct_io(double handle, int enabled) {
 #endif
 }
 
-double io_open_file(const char* path, int write_mode) {
+long long io_open_file(const char* path, int write_mode) {
 #ifdef _WIN32
     DWORD access = GENERIC_READ;
     if (write_mode) access |= GENERIC_WRITE;
     HANDLE h = CreateFileA(path, access, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    return (double)(size_t)h;
+    return (long long)(size_t)h;
 #else
     int flags = write_mode ? (O_RDWR | O_CREAT) : O_RDONLY;
     int fd = open(path, flags, 0644);
-    return (double)(size_t)fd;
+    return (long long)(size_t)fd;
 #endif
 }
 
-void io_close_file(double handle) {
+void io_close_file(long long handle) {
 #ifdef _WIN32
     CloseHandle((HANDLE)(size_t)handle);
 #else

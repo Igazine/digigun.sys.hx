@@ -34,9 +34,9 @@ struct PingSession {
     std::mutex mtx;
 };
 
-static std::map<double, PingSession*> g_ping_sessions;
+static std::map<long long, PingSession*> g_ping_sessions;
 static std::mutex g_ping_sessions_mtx;
-static double g_ping_session_id = 1.0;
+static long long g_ping_session_id = 1;
 
 extern "C" {
 
@@ -184,17 +184,17 @@ int network_get_constant(const char* name) {
     return -1;
 }
 
-double ping_session_open() {
+long long ping_session_open() {
     PingSession* session = new PingSession();
     session->socket_fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
     
     std::lock_guard<std::mutex> lock(g_ping_sessions_mtx);
-    double id = g_ping_session_id++;
+    long long id = g_ping_session_id++;
     g_ping_sessions[id] = session;
     return id;
 }
 
-int ping_session_send(double handle, const char* host, int seq) {
+int ping_session_send(long long handle, const char* host, int seq) {
     std::lock_guard<std::mutex> lock(g_ping_sessions_mtx);
     if (g_ping_sessions.find(handle) == g_ping_sessions.end()) return -1;
     PingSession* session = g_ping_sessions[handle];
@@ -202,7 +202,7 @@ int ping_session_send(double handle, const char* host, int seq) {
     return 0;
 }
 
-struct NativePingReply* ping_session_recv(double handle) {
+struct NativePingReply* ping_session_recv(long long handle) {
     return NULL;
 }
 
@@ -214,11 +214,17 @@ void ping_session_free_replies(struct NativePingReply* list) {
     }
 }
 
-void ping_session_close(double handle) {
+void ping_session_close(long long handle) {
     std::lock_guard<std::mutex> lock(g_ping_sessions_mtx);
     if (g_ping_sessions.find(handle) != g_ping_sessions.end()) {
         PingSession* session = g_ping_sessions[handle];
-        if (session->socket_fd >= 0) close(session->socket_fd);
+        if (session->socket_fd >= 0) {
+#ifdef _WIN32
+            closesocket(session->socket_fd);
+#else
+            close(session->socket_fd);
+#endif
+        }
         delete session;
         g_ping_sessions.erase(handle);
     }
