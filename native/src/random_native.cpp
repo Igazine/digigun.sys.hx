@@ -1,38 +1,27 @@
 #include "random_native.h"
+#include <stdlib.h>
 
 #ifdef _WIN32
-    #include <windows.h>
-    #include <bcrypt.h>
-    #pragma comment(lib, "bcrypt.lib")
+#include <windows.h>
+#include <bcrypt.h>
+#pragma comment(lib, "bcrypt.lib")
 #else
-    #include <fcntl.h>
-    #include <unistd.h>
+#include <stdio.h>
+#include <unistd.h>
 #endif
 
 extern "C" {
 
-int random_get_bytes(unsigned char* buffer, int length) {
+int random_get_bytes(unsigned char* buffer, size_t size) {
 #ifdef _WIN32
-    if (BCryptGenRandom(NULL, buffer, (ULONG)length, BCRYPT_USE_SYSTEM_PREFERRED_RNG) >= 0) {
-        return 0;
-    }
-    return -1;
+    NTSTATUS status = BCryptGenRandom(NULL, buffer, (ULONG)size, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    return (status == 0) ? 0 : -1;
 #else
-    int fd = open("/dev/urandom", O_RDONLY);
-    if (fd < 0) return -1;
-    
-    int total = 0;
-    while (total < length) {
-        ssize_t result = read(fd, buffer + total, length - total);
-        if (result < 0) {
-            close(fd);
-            return -1;
-        }
-        total += (int)result;
-    }
-    
-    close(fd);
-    return 0;
+    FILE* f = fopen("/dev/urandom", "rb");
+    if (!f) return -1;
+    size_t res = fread(buffer, 1, size, f);
+    fclose(f);
+    return (res == size) ? 0 : -1;
 #endif
 }
 

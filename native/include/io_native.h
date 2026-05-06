@@ -2,15 +2,24 @@
 #define IO_NATIVE_H
 
 #include <stddef.h>
+#include "digigun_export.h"
 
-/**
- * Native I/O performance functions using size_t handles.
- */
 extern "C" {
-    long long io_sendfile(size_t out_handle, const char* path, long long offset, long long length);
-    int io_set_direct_io(size_t handle, int enabled);
-    size_t io_open_file(const char* path, int write_mode);
-    void io_close_file(size_t handle);
+    /**
+     * Optimized zero-copy file transfer.
+     */
+    DIGIGUN_API long long io_sendfile(long long out_handle, const char* path, long long offset, long long length);
+
+    /**
+     * Handle-level Direct I/O control.
+     */
+    DIGIGUN_API int io_set_direct_io(long long handle, int enable);
+
+    /**
+     * File Opening/Closing
+     */
+    DIGIGUN_API long long io_open_file(const char* path, int write_mode);
+    DIGIGUN_API void io_close_file(long long handle);
 }
 
 #endif // IO_NATIVE_H

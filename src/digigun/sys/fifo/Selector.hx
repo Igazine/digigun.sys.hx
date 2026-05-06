@@ -69,7 +69,7 @@ class Selector {
         var nativeRevents = NativeArray.address(revents, 0);
 
         var timeoutMs = timeout < 0 ? -1 : Std.int(timeout * 1000);
-        var res:Int = untyped __cpp__("fd_poll((size_t*)(void*){0}, (int*)(void*){1}, (int*)(void*){2}, {3}, {4})", nativeHandles, nativeEvents, nativeRevents, handles.length, timeoutMs);
+        var res:Int = untyped __cpp__("fd_poll((long long*)(void*){0}, (int*)(void*){1}, (int*)(void*){2}, {3}, {4})", nativeHandles, nativeEvents, nativeRevents, handles.length, timeoutMs);
 
         var readyRead = new Array<ICommunicator>();
         var readyWrite = new Array<ICommunicator>();

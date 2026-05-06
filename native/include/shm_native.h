@@ -2,16 +2,17 @@
 #define SHM_NATIVE_H
 
 #include <stddef.h>
+#include "digigun_export.h"
 
-/**
- * Native shared memory functions using size_t handles.
- */
 extern "C" {
-    size_t shm_open_segment(const char* name, int size, int writable);
-    void shm_close_segment(size_t handle);
-    int shm_read_segment(size_t handle, int offset, char* buffer, int length);
-    int shm_write_segment(size_t handle, int offset, const char* buffer, int length);
-    void shm_unlink_segment(const char* name);
+    /**
+     * Shared Memory management.
+     */
+    DIGIGUN_API long long shm_open_segment(const char* name, int size, int writable);
+    DIGIGUN_API void shm_close_segment(long long handle);
+    DIGIGUN_API int shm_read_segment(long long handle, int offset, char* buffer, int length);
+    DIGIGUN_API int shm_write_segment(long long handle, int offset, const char* buffer, int length);
+    DIGIGUN_API void shm_unlink_segment(const char* name);
 }
 
 #endif // SHM_NATIVE_H

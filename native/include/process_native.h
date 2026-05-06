@@ -1,8 +1,11 @@
 #ifndef PROCESS_NATIVE_H
 #define PROCESS_NATIVE_H
 
+#include <stddef.h>
+#include "digigun_export.h"
+
 /**
- * Native process information structure.
+ * Native structure for process information.
  */
 struct NativeProcessInfo {
     int pid;
@@ -10,47 +13,17 @@ struct NativeProcessInfo {
     char name[256];
     double memory_rss;
     double memory_virtual;
-    NativeProcessInfo* next;
+    struct NativeProcessInfo* next;
 };
 
-/**
- * Declares process system calls.
- */
 extern "C" {
-    /**
-     * Checks if the process is elevated (root/admin).
-     */
-    int process_is_root();
-
-    /**
-     * Gets the file resource limit.
-     */
-    int process_get_file_limit();
-
-    /**
-     * Sets the file resource limit.
-     */
-    int process_set_file_limit(int limit);
-
-    /**
-     * Lists all running processes.
-     */
-    NativeProcessInfo* process_list_all();
-
-    /**
-     * Frees the process info list.
-     */
-    void process_free_list(NativeProcessInfo* list);
-
-    /**
-     * Gets the current process ID.
-     */
-    int process_get_id();
-
-    /**
-     * Forks the current process.
-     */
-    int process_fork();
+    DIGIGUN_API int process_get_id();
+    DIGIGUN_API int process_is_root();
+    DIGIGUN_API int process_get_file_limit();
+    DIGIGUN_API int process_set_file_limit(int limit);
+    DIGIGUN_API struct NativeProcessInfo* process_list_all();
+    DIGIGUN_API void process_free_list(struct NativeProcessInfo* list);
+    DIGIGUN_API int process_fork();
 }
 
 #endif // PROCESS_NATIVE_H

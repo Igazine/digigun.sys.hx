@@ -1,12 +1,15 @@
 #ifndef RT_NATIVE_H
 #define RT_NATIVE_H
 
-/**
- * Native real-time functions.
- */
+#include <stddef.h>
+#include "digigun_export.h"
+
 extern "C" {
-    int rt_mlockall(int current, int future);
-    int rt_munlockall();
+    /**
+     * Lock/Unlock physical memory pages.
+     */
+    DIGIGUN_API int rt_mlockall(int current, int future);
+    DIGIGUN_API int rt_munlockall();
 }
 
 #endif // RT_NATIVE_H

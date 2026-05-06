@@ -82,18 +82,18 @@ extern class Native {
     static function get_constant(name:String):Int;
 
     @:native("ping_session_open")
-    static function ping_session_open():Float;
+    static function ping_session_open():haxe.Int64;
 
     @:native("ping_session_send")
-    static function ping_session_send(handle:Float, host:String, seq:Int):Int;
+    static function ping_session_send(handle:haxe.Int64, host:String, seq:Int):Int;
 
     @:native("ping_session_recv")
-    static function ping_session_recv(handle:Float):RawPointer<NativePingReply>;
+    static function ping_session_recv(handle:haxe.Int64):RawPointer<NativePingReply>;
 
     @:native("ping_session_free_replies")
     static function ping_session_free_replies(list:RawPointer<NativePingReply>):Void;
 
     @:native("ping_session_close")
-    static function ping_session_close(handle:Float):Void;
+    static function ping_session_close(handle:haxe.Int64):Void;
 }
 #end

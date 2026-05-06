@@ -2,29 +2,33 @@
 #define FIFO_NATIVE_H
 
 #include <stddef.h>
+#include "digigun_export.h"
 
-/**
- * Declares functions for FIFO and Socket operations.
- * Uses size_t for handles to ensure correct hxcpp mapping to cpp.SizeT.
- */
 extern "C" {
-    int fifo_create(const char* path, int mode);
-    size_t fifo_open(const char* path, int write_mode);
-    
-    size_t socket_create();
-    int socket_bind(size_t handle, const char* path);
-    int socket_listen(size_t handle, int backlog);
-    size_t socket_accept(size_t handle);
-    int socket_connect(size_t handle, const char* path);
-    
-    int fd_read(size_t handle, char* buffer, int length);
-    int fd_write(size_t handle, const char* buffer, int length);
-    int fd_set_blocking(size_t handle, int blocking);
-    
-    int fd_poll(size_t* handles, int* events, int* revents, int count, int timeout);
-    
-    void fd_close(size_t handle);
-    int fd_get_numeric(size_t handle);
+    /**
+     * File Descriptor management
+     */
+    DIGIGUN_API int fd_set_blocking(long long fd, int blocking);
+    DIGIGUN_API int fd_read(long long fd, char* buffer, int length);
+    DIGIGUN_API int fd_write(long long fd, const char* buffer, int length);
+    DIGIGUN_API void fd_close(long long fd);
+    DIGIGUN_API int fd_get_numeric(long long fd);
+    DIGIGUN_API int fd_poll(long long* fds, int* events, int* revents, int count, int timeout_ms);
+
+    /**
+     * Named Pipes (FIFO)
+     */
+    DIGIGUN_API int fifo_create(const char* path, int mode);
+    DIGIGUN_API long long fifo_open(const char* path, int write_mode);
+
+    /**
+     * Unix Domain Sockets
+     */
+    DIGIGUN_API long long socket_create();
+    DIGIGUN_API int socket_bind(long long fd, const char* path);
+    DIGIGUN_API int socket_listen(long long fd, int backlog);
+    DIGIGUN_API long long socket_accept(long long fd);
+    DIGIGUN_API int socket_connect(long long fd, const char* path);
 }
 
 #endif // FIFO_NATIVE_H

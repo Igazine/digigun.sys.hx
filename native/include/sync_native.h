@@ -2,17 +2,18 @@
 #define SYNC_NATIVE_H
 
 #include <stddef.h>
+#include "digigun_export.h"
 
-/**
- * Native inter-process synchronization using size_t handles.
- */
 extern "C" {
-    size_t sync_sem_open(const char* name, int initial_value);
-    int sync_sem_wait(size_t handle);
-    int sync_sem_post(size_t handle);
-    int sync_sem_trywait(size_t handle);
-    void sync_sem_close(size_t handle);
-    void sync_sem_unlink(const char* name);
+    /**
+     * Named Semaphore management.
+     */
+    DIGIGUN_API long long sync_sem_open(const char* name, int initial_value);
+    DIGIGUN_API int sync_sem_wait(long long handle);
+    DIGIGUN_API int sync_sem_trywait(long long handle);
+    DIGIGUN_API int sync_sem_post(long long handle);
+    DIGIGUN_API void sync_sem_close(long long handle);
+    DIGIGUN_API void sync_sem_unlink(const char* name);
 }
 
 #endif // SYNC_NATIVE_H

@@ -409,9 +409,8 @@ class Main {
     static function testSemaphore() {
         trace("--- Testing Named Semaphore ---");
         var semName = "haxe_sem_test";
-        var sem = new NamedSemaphore();
-        sem.unlink();
-        if (sem.open(semName, 1)) {
+        var sem = NamedSemaphore.open(semName, 1);
+        if (sem != null) {
             trace("Semaphore opened successfully.");
             if (sem.wait()) {
                 trace("Acquired.");

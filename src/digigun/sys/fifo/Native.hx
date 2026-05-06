@@ -14,39 +14,39 @@ extern class Native {
     static function fifo_create(path:String, mode:Int):Int;
 
     @:native("fifo_open")
-    static function fifo_open(path:String, writeMode:Int):Float;
+    static function fifo_open(path:String, writeMode:Int):haxe.Int64;
 
     @:native("socket_create")
-    static function socket_create():Float;
+    static function socket_create():haxe.Int64;
 
     @:native("socket_bind")
-    static function socket_bind(handle:Float, path:String):Int;
+    static function socket_bind(handle:haxe.Int64, path:String):Int;
 
     @:native("socket_listen")
-    static function socket_listen(handle:Float, backlog:Int):Int;
+    static function socket_listen(handle:haxe.Int64, backlog:Int):Int;
 
     @:native("socket_accept")
-    static function socket_accept(handle:Float):Float;
+    static function socket_accept(handle:haxe.Int64):haxe.Int64;
 
     @:native("socket_connect")
-    static function socket_connect(handle:Float, path:String):Int;
+    static function socket_connect(handle:haxe.Int64, path:String):Int;
 
     @:native("fd_read")
-    static function fd_read(handle:Float, buffer:cpp.RawPointer<cpp.Char>, length:Int):Int;
+    static function fd_read(handle:haxe.Int64, buffer:cpp.RawPointer<cpp.Char>, length:Int):Int;
 
     @:native("fd_write")
-    static function fd_write(handle:Float, buffer:cpp.RawConstPointer<cpp.Char>, length:Int):Int;
+    static function fd_write(handle:haxe.Int64, buffer:cpp.RawConstPointer<cpp.Char>, length:Int):Int;
 
     @:native("fd_set_blocking")
-    static function fd_set_blocking(handle:Float, blocking:Int):Int;
+    static function fd_set_blocking(handle:haxe.Int64, blocking:Int):Int;
 
     @:native("fd_poll")
     static function fd_poll(handles:cpp.RawPointer<haxe.Int64>, events:cpp.RawPointer<Int>, revents:cpp.RawPointer<Int>, count:Int, timeout:Int):Int;
 
     @:native("fd_close")
-    static function fd_close(handle:Float):Void;
+    static function fd_close(handle:haxe.Int64):Void;
 
     @:native("fd_get_numeric")
-    static function fd_get_numeric(handle:Float):Int;
+    static function fd_get_numeric(handle:haxe.Int64):Int;
 }
 #end

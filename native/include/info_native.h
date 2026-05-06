@@ -1,13 +1,13 @@
 #ifndef INFO_NATIVE_H
 #define INFO_NATIVE_H
 
-/**
- * Declares system information system calls.
- */
+#include <stddef.h>
+#include "digigun_export.h"
+
 extern "C" {
-    void info_get_memory(double* total, double* free, double* used);
-    double info_get_cpu_usage();
-    void info_get_disk(const char* path, double* total, double* free, double* avail);
+    DIGIGUN_API void info_get_memory(double* total, double* free, double* used);
+    DIGIGUN_API double info_get_cpu_usage();
+    DIGIGUN_API void info_get_disk(const char* path, double* total, double* free, double* avail);
 }
 
 #endif // INFO_NATIVE_H

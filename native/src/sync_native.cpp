@@ -10,28 +10,28 @@
 
 extern "C" {
 
-size_t sync_sem_open(const char* name, int initial_value) {
+double sync_sem_open(const char* name, int initial_value) {
     HANDLE h = CreateSemaphoreA(NULL, initial_value, 2147483647, name);
-    return (size_t)h;
+    return (double)(size_t)h;
 }
 
-int sync_sem_wait(size_t handle) {
-    return (WaitForSingleObject((HANDLE)handle, INFINITE) == WAIT_OBJECT_0) ? 0 : -1;
+int sync_sem_wait(double handle) {
+    return (WaitForSingleObject((HANDLE)(size_t)handle, INFINITE) == WAIT_OBJECT_0) ? 0 : -1;
 }
 
-int sync_sem_post(size_t handle) {
-    return ReleaseSemaphore((HANDLE)handle, 1, NULL) ? 0 : -1;
+int sync_sem_post(double handle) {
+    return ReleaseSemaphore((HANDLE)(size_t)handle, 1, NULL) ? 0 : -1;
 }
 
-int sync_sem_trywait(size_t handle) {
-    DWORD res = WaitForSingleObject((HANDLE)handle, 0);
+int sync_sem_trywait(double handle) {
+    DWORD res = WaitForSingleObject((HANDLE)(size_t)handle, 0);
     if (res == WAIT_OBJECT_0) return 0;
     if (res == WAIT_TIMEOUT) return -2;
     return -1;
 }
 
-void sync_sem_close(size_t handle) {
-    if (handle) CloseHandle((HANDLE)handle);
+void sync_sem_close(double handle) {
+    if (handle) CloseHandle((HANDLE)(size_t)handle);
 }
 
 void sync_sem_unlink(const char* name) {
@@ -46,33 +46,34 @@ void sync_sem_unlink(const char* name) {
 #include <sys/stat.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 extern "C" {
 
-size_t sync_sem_open(const char* name, int initial_value) {
+double sync_sem_open(const char* name, int initial_value) {
     std::string posix_name = name;
     if (posix_name[0] != '/') posix_name = "/" + posix_name;
     
     sem_t* sem = sem_open(posix_name.c_str(), O_CREAT, 0666, initial_value);
-    return (sem == SEM_FAILED) ? 0 : (size_t)sem;
+    return (sem == SEM_FAILED) ? 0 : (double)(size_t)sem;
 }
 
-int sync_sem_wait(size_t handle) {
-    return sem_wait((sem_t*)handle);
+int sync_sem_wait(double handle) {
+    return sem_wait((sem_t*)(size_t)handle);
 }
 
-int sync_sem_post(size_t handle) {
-    return sem_post((sem_t*)handle);
+int sync_sem_post(double handle) {
+    return sem_post((sem_t*)(size_t)handle);
 }
 
-int sync_sem_trywait(size_t handle) {
-    if (sem_trywait((sem_t*)handle) == 0) return 0;
+int sync_sem_trywait(double handle) {
+    if (sem_trywait((sem_t*)(size_t)handle) == 0) return 0;
     if (errno == EAGAIN) return -2;
     return -1;
 }
 
-void sync_sem_close(size_t handle) {
-    if (handle) sem_close((sem_t*)handle);
+void sync_sem_close(double handle) {
+    if (handle) sem_close((sem_t*)(size_t)handle);
 }
 
 void sync_sem_unlink(const char* name) {

@@ -5,14 +5,14 @@ import haxe.Int64;
 /**
  * A container for a native system resource handle.
  * Uses Int64 to represent the handle value, ensuring stability
- * across all hxcpp platforms and avoiding size_t template ambiguities.
+ * across all hxcpp platforms and avoiding size_t/float precision issues.
  */
 @:noDoc
 #if cpp
 class NativeHandle {
-    public var value(default, null):Float;
+    public var value(default, null):Int64;
 
-    public function new(val:Float) {
+    public function new(val:Int64) {
         this.value = val;
     }
 
@@ -42,7 +42,7 @@ class NativeHandle {
      * Explicit creation from a raw pointer.
      */
     public static function fromVoidPtr(ptr:cpp.RawPointer<cpp.Void>):NativeHandle {
-        return new NativeHandle(untyped __cpp__("(double)(size_t){0}", ptr));
+        return new NativeHandle(untyped __cpp__("(long long)(size_t){0}", ptr));
     }
 }
 #else
