@@ -21,6 +21,7 @@
         <file name="${haxelib:digigun.sys.hx}/native/src/auth_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/service_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/dl_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/test/native/struct_test.cpp"/>
     </files>
 
     <files id="haxe">

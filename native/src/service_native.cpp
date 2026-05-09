@@ -1,12 +1,21 @@
+#include <hxcpp.h>
 #include "service_native.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <stddef.h>
-#include <thread>
 
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <winerror.h>
+
+#ifndef TRUE
+#define TRUE 1
+#endif
+#ifndef FALSE
+#define FALSE 0
+#endif
 
 // Global state for Windows SCM
 static SERVICE_STATUS_HANDLE g_status_handle = NULL;
@@ -14,6 +23,7 @@ static SERVICE_STATUS        g_status = {0};
 static ServiceCallback       g_on_start = NULL;
 static ServiceCallback       g_on_stop = NULL;
 static char                  g_service_name[256] = {0};
+static HANDLE                g_stop_event = NULL;
 
 static void win32_log(const char* msg) {
     FILE* f = fopen("C:\\service.log", "a");
@@ -24,22 +34,34 @@ static void win32_log(const char* msg) {
 }
 
 static DWORD WINAPI win32_service_handler_ex(DWORD ctrl, DWORD type, LPVOID data, LPVOID ctx) {
+    // Attach to Haxe VM for this thread
+    hx::NativeAttach auto_attach;
+
     switch (ctrl) {
         case SERVICE_CONTROL_STOP:
         case SERVICE_CONTROL_SHUTDOWN:
             win32_log("Handler: Stop/Shutdown received.");
             g_status.dwCurrentState = SERVICE_STOP_PENDING;
             SetServiceStatus(g_status_handle, &g_status);
+            
+            // Execute Haxe stop callback
             if (g_on_stop) g_on_stop();
+            
+            // Signal the main loop to exit
+            if (g_stop_event) SetEvent(g_stop_event);
+
             g_status.dwCurrentState = SERVICE_STOPPED;
             SetServiceStatus(g_status_handle, &g_status);
-            return NO_ERROR;
+            return (DWORD)0; // NO_ERROR
         default:
-            return ERROR_CALL_NOT_IMPLEMENTED;
+            return (DWORD)ERROR_CALL_NOT_IMPLEMENTED;
     }
 }
 
 static void WINAPI win32_service_main(DWORD argc, LPTSTR* argv) {
+    // Attach to Haxe VM for this thread
+    hx::NativeAttach auto_attach;
+    
     win32_log("ServiceMain: Entered.");
     g_status_handle = RegisterServiceCtrlHandlerExA(g_service_name, win32_service_handler_ex, NULL);
     if (!g_status_handle) {
@@ -49,38 +71,31 @@ static void WINAPI win32_service_main(DWORD argc, LPTSTR* argv) {
 
     g_status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
     g_status.dwServiceSpecificExitCode = 0;
+    g_status.dwCheckPoint = 0;
+    g_status.dwWaitHint = 0;
 
     g_status.dwCurrentState = SERVICE_START_PENDING;
     SetServiceStatus(g_status_handle, &g_status);
+
+    // Create event to keep the service thread alive
+    g_stop_event = CreateEventA(NULL, TRUE, FALSE, NULL);
 
     g_status.dwCurrentState = SERVICE_RUNNING;
     g_status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
     SetServiceStatus(g_status_handle, &g_status);
     win32_log("ServiceMain: RUNNING reported.");
 
-    // IMPORTANT: In Windows services, the ServiceMain thread SHOULD stay alive
-    // but here we are using it to trigger the Haxe callback.
+    // Execute Haxe start callback
     if (g_on_start) g_on_start();
     
-    // Keep this thread alive as long as the service is running
-    while (g_status.dwCurrentState == SERVICE_RUNNING) {
-        Sleep(500);
+    // Block until stop event is signaled
+    if (g_stop_event) {
+        WaitForSingleObject(g_stop_event, INFINITE);
+        CloseHandle(g_stop_event);
+        g_stop_event = NULL;
     }
+    
     win32_log("ServiceMain: Exiting.");
-}
-
-static void win32_dispatcher_thread() {
-    win32_log("Dispatcher Thread: Starting...");
-    SERVICE_TABLE_ENTRYA table[] = {
-        {(LPSTR)g_service_name, (LPSERVICE_MAIN_FUNCTIONA)win32_service_main},
-        {NULL, NULL}
-    };
-    if (!StartServiceCtrlDispatcherA(table)) {
-        char buf[128];
-        snprintf(buf, sizeof(buf), "Dispatcher Thread: FAILED (Error: %lu)", GetLastError());
-        win32_log(buf);
-    }
-    win32_log("Dispatcher Thread: Exiting.");
 }
 
 #else
@@ -148,13 +163,20 @@ int service_run(const char* name, ServiceCallback on_start, ServiceCallback on_s
     g_on_start = on_start;
     g_on_stop = on_stop;
 
-    // We MUST run the dispatcher in a background thread because it BLOCKs,
-    // and Haxe's main thread must remain responsive or it will be killed by SCM.
-    std::thread t(win32_dispatcher_thread);
-    t.detach();
+    SERVICE_TABLE_ENTRYA table[] = {
+        {(LPSTR)g_service_name, (LPSERVICE_MAIN_FUNCTIONA)win32_service_main},
+        {NULL, NULL}
+    };
     
-    // Give dispatcher a moment to start
-    Sleep(200);
+    // StartServiceCtrlDispatcherA blocks until the service is stopped.
+    // This MUST be called on the main thread of the process.
+    if (!StartServiceCtrlDispatcherA(table)) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "service_run: FAILED (Error: %lu)", GetLastError());
+        win32_log(buf);
+        return (int)GetLastError();
+    }
+    
     return 0;
 #else
     if (on_start) on_start();

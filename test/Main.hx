@@ -33,6 +33,28 @@ class OutputLib {
     public static function echo(input:String):String return null;
 }
 
+@:build(digigun.sys.dl.FFI.struct())
+class Point {
+    public var x:Int;
+    public var y:Int;
+}
+
+@:build(digigun.sys.dl.FFI.struct())
+class ComplexData {
+    public var id:Int;
+    public var value:Float;
+    public var name:String;
+}
+
+@:build(digigun.sys.dl.FFI.build())
+class StructLib {
+    @:native("process_point")
+    public static function processPoint(p:Point):Void {}
+
+    @:native("process_complex")
+    public static function processComplex(d:ComplexData):Void {}
+}
+
 class Main {
     static function getTestPath(name:String):String {
         if (Sys.systemName() == "Windows") {
@@ -885,6 +907,35 @@ class Main {
             trace('  Echo Result: "${echoed}"');
             if (echoed == testStr) trace("  String auto-conversion: SUCCESS");
             else trace("  String auto-conversion: FAILED");
+
+            trace("--- Testing Struct FFI Mapping ---");
+            if (StructLib.bind(libPath)) {
+                trace("  Binding StructLib: SUCCESS");
+                
+                // Test 1: Simple Struct
+                var p = new Point();
+                p.x = 10;
+                p.y = 20;
+                trace('  Before: x=${p.x}, y=${p.y}');
+                StructLib.processPoint(p);
+                trace('  After: x=${p.x}, y=${p.y}');
+                if (p.x == 110 && p.y == 220) trace("  Simple Struct Mapping: SUCCESS");
+                else trace("  Simple Struct Mapping: FAILED");
+
+                // Test 2: Complex Struct (with Strings/Floats)
+                var d = new ComplexData();
+                d.id = 42;
+                d.value = 3.14;
+                d.name = "FFI Struct";
+                trace('  Before: id=${d.id}, value=${d.value}, name=${d.name}');
+                StructLib.processComplex(d);
+                trace('  After: id=${d.id}, value=${d.value}, name=${d.name}');
+                if (d.id == 84 && Math.abs(d.value - 4.64) < 0.001) trace("  Complex Struct Mapping: SUCCESS");
+                else trace("  Complex Struct Mapping: FAILED");
+
+            } else {
+                trace("  Binding StructLib: FAILED");
+            }
         } else {
             trace("  Binding FAILED.");
         }

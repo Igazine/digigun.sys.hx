@@ -9,6 +9,146 @@ import haxe.macro.Type;
  */
 class FFI {
     /**
+     * Build macro for classes marked with @:struct to automate C-struct layout mapping.
+     */
+    public static macro function struct():Array<Field> {
+        var fields = Context.getBuildFields();
+        var newFields:Array<Field> = [];
+        var currentOffset = 0;
+        var maxAlign = 1;
+
+        // Add a marker meta to the class itself so the build() macro can find it
+        var localClass = Context.getLocalClass();
+        if (localClass != null) {
+            localClass.get().meta.add(":ffi_struct", [], Context.currentPos());
+        }
+
+        for (field in fields) {
+            switch (field.kind) {
+                case FVar(t, _):
+                    var typeName = haxe.macro.ComplexTypeTools.toString(t);
+                    var size = 0;
+                    var align = 1;
+
+                    switch (typeName) {
+                        case "Int": size = 4; align = 4;
+                        case "Float": size = 8; align = 8;
+                        case "Bool": size = 1; align = 1; 
+                        case "String": size = 8; align = 8;
+                        default: size = 8; align = 8;
+                    }
+
+                    if (align > maxAlign) maxAlign = align;
+
+                    if (currentOffset % align != 0) {
+                        currentOffset += (align - (currentOffset % align));
+                    }
+
+                    var fieldOffset = currentOffset;
+                    currentOffset += size;
+
+                    var getterName = "get_" + field.name;
+                    var setterName = "set_" + field.name;
+
+                    var getterExpr = switch (typeName) {
+                        case "Int": macro return _bytes.getInt32($v{fieldOffset});
+                        case "Float": macro return _bytes.getDouble($v{fieldOffset});
+                        case "Bool": macro return _bytes.get($v{fieldOffset}) != 0;
+                        case "String": 
+                            macro {
+                                var ptr:cpp.ConstCharStar = untyped __cpp__("*(const char**)((char*){0} + {1})", getPointer(), $v{fieldOffset});
+                                return (ptr == null) ? null : ptr.toString();
+                            };
+                        default: macro return null;
+                    }
+
+                    var setterExpr = switch (typeName) {
+                        case "Int": macro { _bytes.setInt32($v{fieldOffset}, value); return value; };
+                        case "Float": macro { _bytes.setDouble($v{fieldOffset}, value); return value; };
+                        case "Bool": macro { _bytes.set($v{fieldOffset}, value ? 1 : 0); return value; };
+                        case "String":
+                            macro {
+                                untyped __cpp__("*(const char**)((char*){0} + {1}) = {2}", getPointer(), $v{fieldOffset}, (cast value : cpp.ConstCharStar));
+                                return value;
+                            };
+                        default: macro return value;
+                    }
+
+                    newFields.push({
+                        name: field.name,
+                        access: [APublic],
+                        kind: FProp("get", "set", t),
+                        pos: field.pos
+                    });
+
+                    newFields.push({
+                        name: getterName,
+                        access: [APrivate],
+                        kind: FFun({
+                            args: [],
+                            ret: t,
+                            expr: getterExpr
+                        }),
+                        pos: field.pos
+                    });
+
+                    newFields.push({
+                        name: setterName,
+                        access: [APrivate],
+                        kind: FFun({
+                            args: [{name: "value", type: t}],
+                            ret: t,
+                            expr: setterExpr
+                        }),
+                        pos: field.pos
+                    });
+
+                default:
+                    newFields.push(field);
+            }
+        }
+
+        if (currentOffset % maxAlign != 0) {
+            currentOffset += (maxAlign - (currentOffset % maxAlign));
+        }
+        var structSize = currentOffset;
+
+        newFields.push({
+            name: "_bytes",
+            access: [APrivate],
+            kind: FVar(macro : haxe.io.Bytes),
+            pos: Context.currentPos()
+        });
+
+        newFields.push({
+            name: "new",
+            access: [APublic],
+            kind: FFun({
+                args: [{name: "existing", type: macro : haxe.io.Bytes, opt: true}],
+                ret: null,
+                expr: macro {
+                    if (existing != null) _bytes = existing;
+                    else _bytes = haxe.io.Bytes.alloc($v{structSize});
+                }
+            }),
+            pos: Context.currentPos()
+        });
+
+        newFields.push({
+            name: "getPointer",
+            access: [APublic],
+            kind: FFun({
+                args: [],
+                ret: macro : cpp.Star<cpp.Void>,
+                expr: macro return cast untyped __cpp__("(void*)&{0}->b[0]", _bytes)
+            }),
+            pos: Context.currentPos()
+        });
+
+        return newFields;
+    }
+
+    /**
      * Build macro to automate dynamic library bindings with smart type conversion.
      */
     public static macro function build():Array<Field> {
@@ -63,6 +203,9 @@ class FFI {
                                 case TAbstract(t, _) if (t.get().name == "Float"):
                                     callArgs.push(macro $i{argName});
                                     cppArgTypes.push("double");
+                                case TInst(t, _) if (t.get().meta.has(":ffi_struct")):
+                                    callArgs.push(macro $i{argName}.getPointer());
+                                    cppArgTypes.push("void*");
                                 default:
                                     callArgs.push(macro $i{argName});
                                     cppArgTypes.push("void*");
@@ -86,6 +229,7 @@ class FFI {
                             case TAbstract(t, _) if (t.get().name == "Float"):
                                 cppRetType = "double";
                             default:
+                                if (typeName(retType) == "Void") cppRetType = "void";
                         }
 
                         var argSignature = cppArgTypes.join(",");
@@ -165,5 +309,12 @@ class FFI {
         });
 
         return newFields;
+    }
+
+    private static function typeName(t:Type):String {
+        return switch(t) {
+            case TAbstract(tr, _): tr.get().name;
+            default: "";
+        }
     }
 }

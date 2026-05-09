@@ -4,9 +4,9 @@
         "license": "MIT",
         "tags": ["sys", "cpp", "fifo", "unix", "socket", "network"],
         "description": "System extension library for Haxe (CPP target)",
-        "version": "0.3.0",
+        "version": "0.3.1",
         "classPath": "src",
         "contributors": ["igazine"],
-        "releasenote": "Added recursive File Watching, Dynamic Library loading (Dl), and FFI Type Automation (String/Bool) with cross-platform parity.",
+        "releasenote": "Hardened Windows SCM integration (fixed Error 1053) and verified recursive file watching / FFI automation.",
         "dependencies": {}
 }

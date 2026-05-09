@@ -125,6 +125,7 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] `getSymbol()` - Resolve function pointers at runtime ✅
 - [x] **FFI Build Macro** - Automate `cpp.Callable` proxy generation via `@:build` ✅
 - [x] **Smart Type Automation** - Automatic `String` and `Bool` conversion for FFI calls ✅
+- [x] **FFI Struct Mapping** - Automated Haxe-to-C struct layout mapping via `@:struct` ✅
 
 ### Future / Research ⏳
 - [ ] `io_uring` / `IOCP` - Advanced high-performance I/O ⏳
@@ -306,13 +307,32 @@ class MyNativeLib {
     @:native("process_echo")
     public static function echo(input:String):String return null;
 }
+```
 
-// ... elsewhere ...
-if (MyNativeLib.bind("path/to/library.so")) {
-    var pid = MyNativeLib.getPid();
-    var response = MyNativeLib.echo("Hello from Haxe!");
-    trace('PID: $pid, Response: $response');
+### FFI Struct Mapping
+Automatically map Haxe classes to native C structs for passing complex data to/from dynamic libraries.
+
+```haxe
+import digigun.sys.dl.FFI;
+
+@:build(digigun.sys.dl.FFI.struct())
+class NativePoint {
+    public var x:Int;
+    public var y:Int;
 }
+
+@:build(digigun.sys.dl.FFI.build())
+class MyStructLib {
+    @:native("process_point")
+    public static function process(p:NativePoint):Void {}
+}
+
+// ... usage ...
+var p = new NativePoint();
+p.x = 10;
+p.y = 20;
+MyStructLib.process(p); // Passes raw native pointer to C++
+trace('Modified by C++: ${p.x}, ${p.y}');
 ```
 
 ## Safety & Security Considerations
