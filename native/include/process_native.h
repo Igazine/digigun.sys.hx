@@ -24,6 +24,11 @@ extern "C" {
     DIGIGUN_API struct NativeProcessInfo* process_list_all();
     DIGIGUN_API void process_free_list(struct NativeProcessInfo* list);
     DIGIGUN_API int process_fork();
+
+    /**
+     * FFI Testing: Echoes a string back.
+     */
+    DIGIGUN_API const char* process_echo(const char* input);
 }
 
 #endif // PROCESS_NATIVE_H

@@ -21,19 +21,28 @@ import digigun.sys.random.Random;
 import digigun.sys.auth.Auth;
 import digigun.sys.service.Service;
 import digigun.sys.dl.Dl;
+import digigun.sys.dl.FFI;
 import sys.FileSystem;
+
+@:build(digigun.sys.dl.FFI.build())
+class OutputLib {
+    @:native("process_get_id")
+    public static function getPid():Int return 0;
+
+    @:native("process_echo")
+    public static function echo(input:String):String return null;
+}
 
 class Main {
     static function getTestPath(name:String):String {
-        #if windows
-        var envTemp = Sys.getEnv("TEMP");
-        if (envTemp != null && envTemp != "") {
-            return envTemp + "\\" + name;
+        if (Sys.systemName() == "Windows") {
+            var envTemp = Sys.getEnv("TEMP");
+            if (envTemp != null && envTemp != "") {
+                return envTemp + "\\" + name;
+            }
+            return "C:\\temp\\" + name;
         }
-        return "C:\\temp\\" + name;
-        #else
         return "/tmp/" + name;
-        #end
     }
 
     static function main() {
@@ -127,10 +136,15 @@ class Main {
         testSemaphore();
 
         // Network
-        testNetwork();
-        testSendFile();
+        if (Sys.systemName() != "Windows") {
+            testNetwork();
+            testSendFile();
+        } else {
+            trace("Skipping Network tests on Windows VM.");
+        }
         testService();
         testDl();
+        testFfi();
 
         if (args.indexOf("--tui") != -1) {
             testConsoleTUI();
@@ -449,19 +463,38 @@ class Main {
         var watchPath = getTestPath("test_watch_dir");
         if (!FileSystem.exists(watchPath)) FileSystem.createDirectory(watchPath);
         
-        trace('  Starting watch on: ${watchPath}');
+        trace('  Starting recursive watch on: ${watchPath}');
         var started = Watcher.watch(watchPath, (event) -> {
             trace('FS EVENT: Type=${event.type}, Path=${event.path}, isDir=${event.isDir}');
-        });
+        }, true);
         
         if (started) {
             trace("  Watcher started.");
+            
+            // Test 1: Simple file in root
             var testFile = watchPath + "/test.txt";
-            trace("  Creating file...");
+            trace("  Creating file in root...");
             sys.io.File.saveContent(testFile, "Hello Watcher");
             Sys.sleep(1);
-            trace("  Deleting file...");
-            FileSystem.deleteFile(testFile);
+            
+            // Test 2: Subdirectory creation and file in sub
+            var subDir = watchPath + "/subdir";
+            trace("  Creating subdirectory...");
+            if (!FileSystem.exists(subDir)) FileSystem.createDirectory(subDir);
+            Sys.sleep(1);
+            
+            var subFile = subDir + "/sub_test.txt";
+            trace("  Creating file in subdirectory (recursive test)...");
+            sys.io.File.saveContent(subFile, "Hello Subdir");
+            Sys.sleep(1);
+            
+            trace("  Cleaning up...");
+            try {
+                if (FileSystem.exists(subFile)) FileSystem.deleteFile(subFile);
+                if (FileSystem.exists(subDir)) FileSystem.deleteDirectory(subDir);
+                if (FileSystem.exists(testFile)) FileSystem.deleteFile(testFile);
+            } catch(e:Dynamic) {}
+            
             Sys.sleep(1);
             trace("  Stopping all watchers...");
             Watcher.stopAll();
@@ -660,7 +693,7 @@ class Main {
     }
 
     static function testFifo() {
-        var fifoPath = "/tmp/haxe_fifo_test";
+        var fifoPath = getTestPath("haxe_fifo_test");
         try { if (FileSystem.exists(fifoPath)) FileSystem.deleteFile(fifoPath); } catch(e:Dynamic) {}
         var fifo = new Fifo();
         trace("Testing FIFO creation at: " + fifoPath);
@@ -766,14 +799,19 @@ class Main {
     static function testDl() {
         trace("--- Testing Dynamic Symbol Loading ---");
         
-        // We first need to build the library if it doesn't exist
+        var sysName = Sys.systemName();
         var libName = "output.dylib";
-        #if linux libName = "output.so"; #end
-        #if windows libName = "output.dll"; #end
+        var libSubDir = "mac";
         
-        var libPath = "bin/lib/mac/" + libName; // Default for mac
-        #if linux libPath = "bin/lib/linux/" + libName; #end
-        #if windows libPath = "bin/lib/winarm/" + libName; #end
+        if (sysName == "Linux") {
+            libName = "output.dso";
+            libSubDir = "linux";
+        } else if (sysName == "Windows") {
+            libName = "output.dll";
+            libSubDir = "winarm";
+        }
+        
+        var libPath = "bin/lib/" + libSubDir + "/" + libName; 
         
         // Ensure library exists
         if (!FileSystem.exists(libPath)) {
@@ -810,6 +848,45 @@ class Main {
             trace("  Library unloaded.");
         } else {
             trace("  FAILED to load library. Error: " + Dl.getError());
+        }
+    }
+
+    static function testFfi() {
+        trace("--- Testing Haxe-Native FFI Macros ---");
+        
+        var sysName = Sys.systemName();
+        var libName = "output.dylib";
+        var libSubDir = "mac";
+        
+        if (sysName == "Linux") {
+            libName = "output.dso";
+            libSubDir = "linux";
+        } else if (sysName == "Windows") {
+            libName = "output.dll";
+            libSubDir = "winarm";
+        }
+        
+        var libPath = "bin/lib/" + libSubDir + "/" + libName; 
+        
+        if (!FileSystem.exists(libPath)) {
+            trace('  Library not found at ${libPath}. Skipping FFI test.');
+            return;
+        }
+
+        trace("  Attempting to bind OutputLib via macro...");
+        if (OutputLib.bind(libPath)) {
+            trace("  Binding success.");
+            var pid = OutputLib.getPid();
+            trace('  Call via Macro-generated proxy: SUCCESS (Returned PID: ${pid})');
+
+            trace("  Testing String auto-conversion...");
+            var testStr = "Hello FFI Automation!";
+            var echoed = OutputLib.echo(testStr);
+            trace('  Echo Result: "${echoed}"');
+            if (echoed == testStr) trace("  String auto-conversion: SUCCESS");
+            else trace("  String auto-conversion: FAILED");
+        } else {
+            trace("  Binding FAILED.");
         }
     }
 }

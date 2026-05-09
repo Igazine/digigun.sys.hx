@@ -15,7 +15,7 @@ extern "C" {
      * File System Watcher
      */
     typedef void (*FSEventCallback)(const char* path, int type, int is_dir);
-    DIGIGUN_API int fs_watch_start(const char* path, FSEventCallback callback);
+    DIGIGUN_API int fs_watch_start(const char* path, int recursive, FSEventCallback callback);
     DIGIGUN_API void fs_watch_stop_all();
 
     /**

@@ -113,7 +113,7 @@ NativeInterface* network_get_interfaces() {
         if (ifa->ifa_addr->sa_family == AF_LINK) {
             struct sockaddr_dl* sdl = (struct sockaddr_dl*)ifa->ifa_addr;
             unsigned char* mac = (unsigned char*)LLADDR(sdl);
-            sprintf(node->mac, "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+            snprintf(node->mac, sizeof(node->mac), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
         }
 #endif
 

@@ -1,8 +1,9 @@
 <xml>
     <include name="${HXCPP}/build-tool/BuildCommon.xml"/>
-    
+
     <files id="native">
         <compilerflag value="-I${haxelib:digigun.sys.hx}/native/include"/>
+        <compilerflag value="-DDIGIGUN_EXPORTS" if="DIGIGUN_EXPORTS" />
         <file name="${haxelib:digigun.sys.hx}/native/src/fifo_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/network_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/process_native.cpp"/>
@@ -33,8 +34,11 @@
         <lib name="advapi32.lib" if="windows"/>
         <lib name="shlwapi.lib" if="windows"/>
         <lib name="psapi.lib" if="windows"/>
+        <lib name="secur32.lib" if="windows"/>
+        <lib name="userenv.lib" if="windows"/>
         <lib name="bcrypt.lib" if="windows"/>
         <lib name="netapi32.lib" if="windows"/>
+        <lib name="mswsock.lib" if="windows"/>
         <lib name="-lrt" if="linux"/>
         <lib name="-ldl" if="linux"/>
         <linkerflag value="-framework" if="macos"/>

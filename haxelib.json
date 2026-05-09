@@ -7,6 +7,6 @@
         "version": "0.3.0",
         "classPath": "src",
         "contributors": ["igazine"],
-        "releasenote": "Added System Service integration (systemd sd_notify, initial Windows SCM).",
+        "releasenote": "Added recursive File Watching, Dynamic Library loading (Dl), and FFI Type Automation (String/Bool) with cross-platform parity.",
         "dependencies": {}
 }

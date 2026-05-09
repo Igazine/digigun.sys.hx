@@ -15,7 +15,7 @@ extern class Native {
     static function file_unlock(id:haxe.Int64):Void;
 
     @:native("fs_watch_start")
-    static function watch_start(path:String, callback:Callable<(cpp.ConstCharStar, Int, Int)->Void>):Int;
+    static function watch_start(path:String, recursive:Int, callback:Callable<(cpp.ConstCharStar, Int, Int)->Void>):Int;
 
     @:native("fs_watch_stop_all")
     static function watch_stop_all():Void;

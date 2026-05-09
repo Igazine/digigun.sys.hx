@@ -41,5 +41,8 @@ extern class Native {
 
     @:native("process_fork")
     static function fork():Int;
+
+    @:native("process_echo")
+    static function process_echo(input:cpp.ConstCharStar):cpp.ConstCharStar;
 }
 #end

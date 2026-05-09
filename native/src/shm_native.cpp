@@ -20,8 +20,8 @@ extern "C" {
 long long shm_open_segment(const char* name, int size, int writable) {
     DWORD protect = writable ? PAGE_READWRITE : PAGE_READONLY;
     DWORD access = writable ? FILE_MAP_ALL_ACCESS : FILE_MAP_READ;
-
-    HANDLE hMap = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, protect, 0, size, (LPCSTR)name);
+    
+    HANDLE hMap = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, protect, 0, size, name);
     if (!hMap) return 0;
 
     void* ptr = MapViewOfFile(hMap, access, 0, 0, size);
@@ -34,15 +34,17 @@ long long shm_open_segment(const char* name, int size, int writable) {
     return (long long)(size_t)m;
 }
 
-void shm_close_segment(double handle) {
+void shm_close_segment(long long handle) {
     if (!handle) return;
     ManagedShm* m = (ManagedShm*)(size_t)handle;
-    UnmapViewOfFile(m->ptr);
-    CloseHandle(m->handle);
-    free(m);
+    if (m) {
+        UnmapViewOfFile(m->ptr);
+        CloseHandle(m->handle);
+        free(m);
+    }
 }
 
-int shm_read_segment(double handle, int offset, char* buffer, int length) {
+int shm_read_segment(long long handle, int offset, char* buffer, int length) {
     if (!handle) return -1;
     ManagedShm* m = (ManagedShm*)(size_t)handle;
     if (offset + length > m->size) length = m->size - offset;
@@ -51,7 +53,7 @@ int shm_read_segment(double handle, int offset, char* buffer, int length) {
     return length;
 }
 
-int shm_write_segment(double handle, int offset, const char* buffer, int length) {
+int shm_write_segment(long long handle, int offset, const char* buffer, int length) {
     if (!handle) return -1;
     ManagedShm* m = (ManagedShm*)(size_t)handle;
     if (offset + length > m->size) length = m->size - offset;
@@ -88,8 +90,9 @@ long long shm_open_segment(const char* name, int size, int writable) {
     int fd = shm_open(posix_name.c_str(), (writable ? (O_RDWR | O_CREAT) : O_RDONLY), 0666);
     if (fd == -1) return 0;
 
-    if (writable) ftruncate(fd, size);
-    else {
+    if (writable) {
+        if (ftruncate(fd, size) == -1) { close(fd); return 0; }
+    } else {
         struct stat st;
         if (fstat(fd, &st) == 0) size = (int)st.st_size;
     }
@@ -107,9 +110,11 @@ long long shm_open_segment(const char* name, int size, int writable) {
 void shm_close_segment(long long handle) {
     if (!handle) return;
     ManagedShm* m = (ManagedShm*)(size_t)handle;
-    munmap(m->ptr, m->size);
-    close(m->fd);
-    free(m);
+    if (m) {
+        munmap(m->ptr, m->size);
+        close(m->fd);
+        free(m);
+    }
 }
 
 int shm_read_segment(long long handle, int offset, char* buffer, int length) {

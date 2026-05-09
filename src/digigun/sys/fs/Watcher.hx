@@ -10,16 +10,17 @@ class Watcher {
     private static var _callback:(FSEvent)->Void = null;
 
     /**
-     * Starts a recursive watch on the specified directory.
+     * Starts a watch on the specified directory.
      * @param path Directory to watch.
      * @param callback Function to call when an event occurs.
+     * @param recursive True to watch subdirectories recursively.
      * @return True if watch started successfully.
      */
-    public static function watch(path:String, callback:(FSEvent)->Void):Bool {
+    public static function watch(path:String, callback:(FSEvent)->Void, recursive:Bool = true):Bool {
         #if cpp
         _callback = callback;
         var nativeCallback = Callable.fromStaticFunction(_onNativeEvent);
-        return Native.watch_start(path, nativeCallback) == 1;
+        return Native.watch_start(path, recursive ? 1 : 0, nativeCallback) == 1;
         #else
         return false;
         #end

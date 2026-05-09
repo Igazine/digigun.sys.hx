@@ -97,6 +97,8 @@ int process_fork() {
     return -1;
 }
 
+DIGIGUN_API const char* process_echo(const char* input) { return input; }
+
 } // extern "C"
 
 #else
@@ -213,6 +215,8 @@ void process_free_list(NativeProcessInfo* list) {
 int process_get_id() { return (int)getpid(); }
 
 int process_fork() { return (int)fork(); }
+
+DIGIGUN_API const char* process_echo(const char* input) { return input; }
 
 } // extern "C"
 #endif

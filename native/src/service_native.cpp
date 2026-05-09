@@ -77,7 +77,7 @@ static void win32_dispatcher_thread() {
     };
     if (!StartServiceCtrlDispatcherA(table)) {
         char buf[128];
-        sprintf(buf, "Dispatcher Thread: FAILED (Error: %lu)", GetLastError());
+        snprintf(buf, sizeof(buf), "Dispatcher Thread: FAILED (Error: %lu)", GetLastError());
         win32_log(buf);
     }
     win32_log("Dispatcher Thread: Exiting.");

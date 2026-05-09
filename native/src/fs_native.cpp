@@ -1,8 +1,12 @@
 #include "fs_native.h"
+#include <hxcpp.h>
 #include <map>
 #include <string>
 #include <mutex>
 #include <vector>
+#include <cstring>
+#include <thread>
+#include <algorithm>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -11,6 +15,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/mman.h>
+#include <dirent.h>
 #ifdef __APPLE__
 #include <CoreServices/CoreServices.h>
 #include <sys/xattr.h>
@@ -21,11 +26,11 @@
 #endif
 #endif
 
-// Event types matching Haxe FSEventType.hx
-#define FS_EVENT_CREATED  "created"
-#define FS_EVENT_MODIFIED "modified"
-#define FS_EVENT_DELETED  "deleted"
-#define FS_EVENT_RENAMED  "renamed"
+// Event types matching Watcher.hx _onNativeEvent switch
+#define EVENT_TYPE_CREATED  1
+#define EVENT_TYPE_MODIFIED 2
+#define EVENT_TYPE_DELETED  3
+#define EVENT_TYPE_RENAMED  4
 
 extern "C" {
 
@@ -67,14 +72,59 @@ void fs_file_unlock(long long id) {
 struct WatcherSession {
     std::string path;
     FSEventCallback callback;
-#ifdef __APPLE__
+    bool active;
+    bool recursive;
+#ifdef _WIN32
+    HANDLE hDir;
+    std::thread* thread;
+#elif defined(__APPLE__)
     FSEventStreamRef stream;
+#else
+    int inotify_fd;
+    std::map<int, std::string> wd_to_path;
+    std::thread* thread;
 #endif
 };
 static std::vector<WatcherSession*> g_watchers;
 static std::mutex g_watchers_mtx;
 
-#ifdef __APPLE__
+#ifdef _WIN32
+static void win32_watcher_thread(WatcherSession* session) {
+    // Attach this thread to the Haxe GC
+    hx::NativeAttach autoAttach;
+    
+    char buffer[1024 * 16];
+    DWORD bytesReturned;
+    while (session->active) {
+        if (ReadDirectoryChangesW(session->hDir, buffer, sizeof(buffer), session->recursive,
+                                  FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_LAST_WRITE,
+                                  &bytesReturned, NULL, NULL)) {
+            FILE_NOTIFY_INFORMATION* event = (FILE_NOTIFY_INFORMATION*)buffer;
+            while (event) {
+                int type = EVENT_TYPE_MODIFIED;
+                switch (event->Action) {
+                    case FILE_ACTION_ADDED: type = EVENT_TYPE_CREATED; break;
+                    case FILE_ACTION_REMOVED: type = EVENT_TYPE_DELETED; break;
+                    case FILE_ACTION_MODIFIED: type = EVENT_TYPE_MODIFIED; break;
+                    case FILE_ACTION_RENAMED_OLD_NAME: type = EVENT_TYPE_RENAMED; break;
+                    case FILE_ACTION_RENAMED_NEW_NAME: type = EVENT_TYPE_RENAMED; break;
+                }
+
+                int nameLen = event->FileNameLength / sizeof(WCHAR);
+                char fileName[MAX_PATH];
+                WideCharToMultiByte(CP_UTF8, 0, event->FileName, nameLen, fileName, MAX_PATH, NULL, NULL);
+                fileName[nameLen] = '\0';
+
+                std::string fullPath = session->path + "\\" + fileName;
+                session->callback(fullPath.c_str(), type, 0); // isDir stub for Win32
+
+                if (event->NextEntryOffset == 0) break;
+                event = (FILE_NOTIFY_INFORMATION*)((char*)event + event->NextEntryOffset);
+            }
+        } else break;
+    }
+}
+#elif defined(__APPLE__)
 static void fs_event_callback(
     ConstFSEventStreamRef streamRef,
     void *clientCallBackInfo,
@@ -87,29 +137,96 @@ static void fs_event_callback(
     char **paths = (char **)eventPaths;
 
     for (size_t i = 0; i < numEvents; i++) {
-        const char* type = FS_EVENT_MODIFIED;
-        if (eventFlags[i] & kFSEventStreamEventFlagItemCreated) type = FS_EVENT_CREATED;
-        else if (eventFlags[i] & kFSEventStreamEventFlagItemRemoved) type = FS_EVENT_DELETED;
-        else if (eventFlags[i] & kFSEventStreamEventFlagItemRenamed) type = FS_EVENT_RENAMED;
-        else if (eventFlags[i] & kFSEventStreamEventFlagItemModified) type = FS_EVENT_MODIFIED;
+        int type = EVENT_TYPE_MODIFIED;
+        if (eventFlags[i] & kFSEventStreamEventFlagItemCreated) type = EVENT_TYPE_CREATED;
+        else if (eventFlags[i] & kFSEventStreamEventFlagItemRemoved) type = EVENT_TYPE_DELETED;
+        else if (eventFlags[i] & kFSEventStreamEventFlagItemRenamed) type = EVENT_TYPE_RENAMED;
 
         int is_dir = (eventFlags[i] & kFSEventStreamEventFlagItemIsDir) ? 1 : 0;
-        session->callback(paths[i], (int)(size_t)type, is_dir); 
+        session->callback(paths[i], type, is_dir); 
+    }
+}
+#else
+static void linux_add_watch_recursive(int fd, std::string path, std::map<int, std::string>& wd_to_path) {
+    int wd = inotify_add_watch(fd, path.c_str(), IN_MODIFY | IN_CREATE | IN_DELETE | IN_MOVE);
+    if (wd >= 0) wd_to_path[wd] = path;
+
+    DIR* dir = opendir(path.c_str());
+    if (!dir) return;
+    struct dirent* entry;
+    while ((entry = readdir(dir))) {
+        if (entry->d_type == DT_DIR) {
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+            linux_add_watch_recursive(fd, path + "/" + entry->d_name, wd_to_path);
+        }
+    }
+    closedir(dir);
+}
+
+static void linux_watcher_thread(WatcherSession* session) {
+    // Attach this thread to the Haxe GC
+    hx::NativeAttach autoAttach;
+    
+    char buffer[1024 * (sizeof(struct inotify_event) + 16)];
+    while (session->active) {
+        int length = read(session->inotify_fd, buffer, sizeof(buffer));
+        if (length < 0) break;
+        int i = 0;
+        while (i < length) {
+            struct inotify_event* event = (struct inotify_event*)&buffer[i];
+            if (event->len) {
+                int type = EVENT_TYPE_MODIFIED;
+                if (event->mask & IN_CREATE) type = EVENT_TYPE_CREATED;
+                else if (event->mask & IN_DELETE) type = EVENT_TYPE_DELETED;
+                else if (event->mask & IN_MOVE) type = EVENT_TYPE_RENAMED;
+                
+                std::string parentPath = session->wd_to_path[event->wd];
+                std::string fullPath = parentPath + "/" + event->name;
+                
+                if (session->recursive && (event->mask & IN_CREATE) && (event->mask & IN_ISDIR)) {
+                    linux_add_watch_recursive(session->inotify_fd, fullPath, session->wd_to_path);
+                }
+
+                session->callback(fullPath.c_str(), type, (event->mask & IN_ISDIR) ? 1 : 0);
+            }
+            i += sizeof(struct inotify_event) + event->len;
+        }
     }
 }
 #endif
 
-int fs_watch_start(const char* path, FSEventCallback callback) {
-#ifdef __APPLE__
+int fs_watch_start(const char* path, int recursive, FSEventCallback callback) {
+#ifdef _WIN32
+    HANDLE hDir = CreateFileA(path, FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                              NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+    if (hDir == INVALID_HANDLE_VALUE) return 0;
+
     WatcherSession* session = new WatcherSession();
     session->path = path;
     session->callback = callback;
+    session->active = true;
+    session->recursive = recursive != 0;
+    session->hDir = hDir;
+    session->thread = new std::thread(win32_watcher_thread, session);
+
+    std::lock_guard<std::mutex> lock(g_watchers_mtx);
+    g_watchers.push_back(session);
+    return 1;
+#elif defined(__APPLE__)
+    WatcherSession* session = new WatcherSession();
+    session->path = path;
+    session->callback = callback;
+    session->active = true;
+    session->recursive = recursive != 0;
 
     CFStringRef pathCF = CFStringCreateWithCString(NULL, path, kCFStringEncodingUTF8);
     CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void **)&pathCF, 1, NULL);
     
     FSEventStreamContext context = {0, session, NULL, NULL, NULL};
-    session->stream = FSEventStreamCreate(NULL, &fs_event_callback, &context, pathsToWatch, kFSEventStreamEventIdSinceNow, 1.0, kFSEventStreamCreateFlagFileEvents);
+    FSEventStreamCreateFlags flags = kFSEventStreamCreateFlagFileEvents;
+    if (!session->recursive) flags |= kFSEventStreamCreateFlagNoDefer; // Best effort non-recursive for Mac
+
+    session->stream = FSEventStreamCreate(NULL, &fs_event_callback, &context, pathsToWatch, kFSEventStreamEventIdSinceNow, 0.1, flags);
     
     FSEventStreamScheduleWithRunLoop(session->stream, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
     FSEventStreamStart(session->stream);
@@ -118,21 +235,52 @@ int fs_watch_start(const char* path, FSEventCallback callback) {
     g_watchers.push_back(session);
     return 1;
 #else
-    return 0;
+    int fd = inotify_init();
+    if (fd < 0) return 0;
+
+    WatcherSession* session = new WatcherSession();
+    session->path = path;
+    session->callback = callback;
+    session->active = true;
+    session->recursive = recursive != 0;
+    session->inotify_fd = fd;
+
+    if (session->recursive) {
+        linux_add_watch_recursive(fd, path, session->wd_to_path);
+    } else {
+        int wd = inotify_add_watch(fd, path, IN_MODIFY | IN_CREATE | IN_DELETE | IN_MOVE);
+        if (wd >= 0) session->wd_to_path[wd] = path;
+    }
+
+    session->thread = new std::thread(linux_watcher_thread, session);
+
+    std::lock_guard<std::mutex> lock(g_watchers_mtx);
+    g_watchers.push_back(session);
+    return 1;
 #endif
 }
 
 void fs_watch_stop_all() {
-#ifdef __APPLE__
     std::lock_guard<std::mutex> lock(g_watchers_mtx);
     for (auto s : g_watchers) {
+        s->active = false;
+#ifdef _WIN32
+        CancelIoEx(s->hDir, NULL);
+        CloseHandle(s->hDir);
+        s->thread->detach();
+        delete s->thread;
+#elif defined(__APPLE__)
         FSEventStreamStop(s->stream);
         FSEventStreamInvalidate(s->stream);
         FSEventStreamRelease(s->stream);
+#else
+        close(s->inotify_fd);
+        s->thread->detach();
+        delete s->thread;
+#endif
         delete s;
     }
     g_watchers.clear();
-#endif
 }
 
 long long fs_mmap_open(const char* path, int size, int writable) {
