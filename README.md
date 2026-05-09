@@ -30,7 +30,7 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - **Identity & Credentials**: Access to system user and group metadata.
 - **System Service Integration**: Integration with `systemd` (sd_notify) and Windows SCM.
 - **Dynamic Symbol Loading**: Runtime loading of shared libraries (.dylib, .so, .dll) and symbol resolution.
-- **FFI Infrastructure**: Stable C-ABI for consumption by other languages (Python, Rust, Node.js).
+- **FFI Infrastructure**: Smart `@:build` macros for automated proxy generation with `String`/`Bool` auto-conversion and a stable C-ABI for consumption by other languages.
 
 ## Status Legend
 
@@ -123,7 +123,8 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 ### Dynamic Symbol Loading (`digigun.sys.dl`) ✅
 - [x] `open()` - Load shared libraries (.so, .dylib, .dll) ✅
 - [x] `getSymbol()` - Resolve function pointers at runtime ✅
-- [x] `toTypedCallable()` - Call dynamic symbols with full Haxe type safety ✅
+- [x] **FFI Build Macro** - Automate `cpp.Callable` proxy generation via `@:build` ✅
+- [x] **Smart Type Automation** - Automatic `String` and `Bool` conversion for FFI calls ✅
 
 ### Future / Research ⏳
 - [ ] `io_uring` / `IOCP` - Advanced high-performance I/O ⏳
@@ -286,6 +287,31 @@ var user = Auth.getCurrentUser();
 if (user != null) {
     trace('Hello, ${user.realname} (${user.username})!');
     trace('Home: ${user.homeDir}');
+}
+```
+
+### Automated FFI Macros
+Define a proxy class with the `@:build` macro to automatically map native symbols from a dynamic library with smart type conversion.
+
+```haxe
+import digigun.sys.dl.FFI;
+
+@:build(digigun.sys.dl.FFI.build())
+class MyNativeLib {
+    // Automatically resolved from the bound library
+    @:native("process_get_id")
+    public static function getPid():Int return 0;
+
+    // String and Bool types are automatically converted to/from C-strings/int
+    @:native("process_echo")
+    public static function echo(input:String):String return null;
+}
+
+// ... elsewhere ...
+if (MyNativeLib.bind("path/to/library.so")) {
+    var pid = MyNativeLib.getPid();
+    var response = MyNativeLib.echo("Hello from Haxe!");
+    trace('PID: $pid, Response: $response');
 }
 ```
 
