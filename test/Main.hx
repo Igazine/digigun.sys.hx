@@ -112,6 +112,11 @@ class Main {
         testNativeLoop();
         testAsyncFile();
         testAdvancedBuffers();
+        
+        var args = Sys.args();
+        if (args.indexOf("--crash-test") != -1) {
+            testCrashHandler();
+        }
 
         trace("All architecture and implementation checks complete.");
     }
@@ -505,6 +510,21 @@ class Main {
                 trace("  FAILED: Could not create FIFO.");
             }
             loop.close();
+        }
+    }
+
+    static function testCrashHandler() {
+        trace("--- Testing Resilient Diagnostics (Phase 5) ---");
+        var reportPath = getTestPath("crash_report.txt");
+        trace('  Setting up crash handler with report path: $reportPath');
+        
+        if (digigun.sys.rt.RtControl.setupCrashHandler(reportPath)) {
+            trace("  Crash handler installed. Triggering intentional native crash...");
+            Sys.sleep(0.5);
+            // Null pointer dereference
+            untyped __cpp__("*(int*)0 = 42;");
+        } else {
+            trace("  FAILED to setup crash handler.");
         }
     }
 }
