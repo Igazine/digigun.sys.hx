@@ -4,9 +4,9 @@
         "license": "MIT",
         "tags": ["sys", "cpp", "fifo", "unix", "socket", "network"],
         "description": "System extension library for Haxe (CPP target)",
-        "version": "0.3.1",
+        "version": "0.3.2",
         "classPath": "src",
         "contributors": ["igazine"],
-        "releasenote": "Hardened Windows SCM integration (fixed Error 1053) and verified recursive file watching / FFI automation.",
+        "releasenote": "Implemented Native Event Loops (Phase 3) with Kqueue/Epoll/IOCP support and completion-based async I/O.",
         "dependencies": {}
 }

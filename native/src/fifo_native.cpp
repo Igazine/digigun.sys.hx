@@ -19,12 +19,16 @@ long long fifo_open(const char* path, int write_mode) {
     pipePath += path;
 
     if (write_mode) {
-        HANDLE hPipe = CreateFileA(pipePath.c_str(), GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+        HANDLE hPipe = CreateFileA(pipePath.c_str(), GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
         return (hPipe == INVALID_HANDLE_VALUE) ? 0 : (long long)(size_t)hPipe;
     } else {
         HANDLE hPipe = CreateNamedPipeA(pipePath.c_str(), PIPE_ACCESS_INBOUND | FILE_FLAG_OVERLAPPED,
                                        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
                                        1, 4096, 4096, 0, NULL);
+        if (hPipe != INVALID_HANDLE_VALUE) {
+            // Initial connect attempt (might fail with ERROR_IO_PENDING or ERROR_PIPE_CONNECTED)
+            ConnectNamedPipe(hPipe, NULL);
+        }
         return (hPipe == INVALID_HANDLE_VALUE) ? 0 : (long long)(size_t)hPipe;
     }
 }
@@ -129,7 +133,7 @@ extern "C" {
 int fifo_create(const char* path, int mode) { return mkfifo(path, mode); }
 
 long long fifo_open(const char* path, int write_mode) {
-    int fd = open(path, write_mode ? O_WRONLY : O_RDONLY);
+    int fd = open(path, (write_mode ? O_WRONLY : O_RDONLY) | O_NONBLOCK);
     return (fd == -1) ? 0 : (long long)(size_t)fd;
 }
 

@@ -99,6 +99,17 @@ int process_fork() {
 
 DIGIGUN_API const char* process_echo(const char* input) { return input; }
 
+struct Point { int x; int y; };
+struct ComplexData { int id; double value; const char* name; };
+
+DIGIGUN_API void process_point(struct Point* p) {
+    if (p) { p->x += 100; p->y += 200; }
+}
+
+DIGIGUN_API void process_complex(struct ComplexData* d) {
+    if (d) { d->id *= 2; d->value += 1.5; }
+}
+
 } // extern "C"
 
 #else
@@ -217,6 +228,17 @@ int process_get_id() { return (int)getpid(); }
 int process_fork() { return (int)fork(); }
 
 DIGIGUN_API const char* process_echo(const char* input) { return input; }
+
+struct Point { int x; int y; };
+struct ComplexData { int id; double value; const char* name; };
+
+DIGIGUN_API void process_point(struct Point* p) {
+    if (p) { p->x += 100; p->y += 200; }
+}
+
+DIGIGUN_API void process_complex(struct ComplexData* d) {
+    if (d) { d->id *= 2; d->value += 1.5; }
+}
 
 } // extern "C"
 #endif

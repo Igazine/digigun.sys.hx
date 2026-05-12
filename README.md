@@ -30,7 +30,8 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - **Identity & Credentials**: Access to system user and group metadata.
 - **System Service Integration**: Integration with `systemd` (sd_notify) and Windows SCM.
 - **Dynamic Symbol Loading**: Runtime loading of shared libraries (.dylib, .so, .dll) and symbol resolution.
-- **FFI Infrastructure**: Smart `@:build` macros for automated proxy generation with `String`/`Bool` auto-conversion and a stable C-ABI for consumption by other languages.
+- **FFI Infrastructure**: Smart `@:build` macros for automated proxy generation with `String`/`Bool` auto-conversion and automated struct layout mapping.
+- **Native Event Loops**: Completion-based (Proactor) engine for high-performance async I/O (kqueue, epoll, IOCP).
 
 ## Status Legend
 
@@ -127,9 +128,15 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] **Smart Type Automation** - Automatic `String` and `Bool` conversion for FFI calls ✅
 - [x] **FFI Struct Mapping** - Automated Haxe-to-C struct layout mapping via `@:struct` ✅
 
+### Native Event Loops (`digigun.sys.io`) ✅
+- [x] **Completion-based Architecture** - Native kqueue/epoll/IOCP support ✅
+- [x] **Async read/write** - True non-blocking operations on sockets and pipes ✅
+- [x] **Zero-overhead callbacks** - Direct native-to-Haxe callback dispatching ✅
+
 ### Future / Research ⏳
-- [ ] `io_uring` / `IOCP` - Advanced high-performance I/O ⏳
-- [ ] Platform-specific native event loops ⏳
+- [ ] `io_uring` - Kernel-level completion engine for Linux ⏳
+- [ ] Native Crash Recovery - Segfault interception and minidumps ⏳
+- [ ] Async File I/O - Native completion-based file operations ⏳
 
 > **Note for Linux:** Extended attributes (xattr) require a supporting filesystem (e.g., ext4, xfs, btrfs) mounted with `user_xattr` support. Standard Docker `overlayfs` may not support the `user.` namespace used by this library.
 

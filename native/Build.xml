@@ -3,6 +3,7 @@
 
     <files id="native">
         <compilerflag value="-I${haxelib:digigun.sys.hx}/native/include"/>
+        <compilerflag value="-I${haxelib:digigun.sys.hx}/test/native"/>
         <compilerflag value="-DDIGIGUN_EXPORTS" if="DIGIGUN_EXPORTS" />
         <file name="${haxelib:digigun.sys.hx}/native/src/fifo_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/network_native.cpp"/>
@@ -21,7 +22,7 @@
         <file name="${haxelib:digigun.sys.hx}/native/src/auth_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/service_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/dl_native.cpp"/>
-        <file name="${haxelib:digigun.sys.hx}/test/native/struct_test.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/loop_native.cpp"/>
     </files>
 
     <files id="haxe">

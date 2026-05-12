@@ -12,6 +12,10 @@ class NativeBuild {
     /**
      * Dummy method to ensure the class is referenced and not stripped by the compiler.
      */
-    public static function init():Void {}
+    public static function init():Void {
+        #if windows
+        digigun.sys.dl.FFIInternal.force();
+        #end
+    }
 }
 #end
