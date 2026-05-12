@@ -32,6 +32,7 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - **Dynamic Symbol Loading**: Runtime loading of shared libraries (.dylib, .so, .dll) and symbol resolution.
 - **FFI Infrastructure**: Smart `@:build` macros for automated proxy generation with `String`/`Bool` auto-conversion and automated struct layout mapping.
 - **Native Event Loops**: Completion-based (Proactor) engine for high-performance async I/O (kqueue, epoll, IOCP).
+- **Async File I/O**: Non-blocking file operations with native buffer management to minimize GC overhead.
 
 ## Status Legend
 
@@ -133,10 +134,16 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] **Async read/write** - True non-blocking operations on sockets and pipes ✅
 - [x] **Zero-overhead callbacks** - Direct native-to-Haxe callback dispatching ✅
 
+### Async File I/O & Native Buffers (`digigun.sys.io` expansion) ✅
+- [x] **Native Thread Pool (POSIX)** - Async file operations on macOS/Linux ✅
+- [x] **Native Completion (Windows)** - Native IOCP support for regular files ✅
+- [x] **NativeBuffer** - `malloc`-based memory management outside Haxe GC ✅
+- [x] **AsyncFile API** - High-level completion-driven file API ✅
+
 ### Future / Research ⏳
 - [ ] `io_uring` - Kernel-level completion engine for Linux ⏳
-- [ ] Native Crash Recovery - Segfault interception and minidumps ⏳
-- [ ] Async File I/O - Native completion-based file operations ⏳
+- [ ] Phase 5: Resilient Diagnostics - Native crash handler and minidumps ⏳
+- [ ] Tier 4: Hardware & Serial IPC - Unified UART and USB HID access ⏳
 
 > **Note for Linux:** Extended attributes (xattr) require a supporting filesystem (e.g., ext4, xfs, btrfs) mounted with `user_xattr` support. Standard Docker `overlayfs` may not support the `user.` namespace used by this library.
 
@@ -340,6 +347,35 @@ p.x = 10;
 p.y = 20;
 MyStructLib.process(p); // Passes raw native pointer to C++
 trace('Modified by C++: ${p.x}, ${p.y}');
+```
+
+### Async File I/O & Native Buffers
+Perform non-blocking file operations with zero GC overhead by using native buffers.
+
+```haxe
+import digigun.sys.io.NativeLoop;
+import digigun.sys.io.AsyncFile;
+import digigun.sys.io.NativeBuffer;
+
+var loop = new NativeLoop();
+var file = AsyncFile.open(loop, "large_file.bin", false);
+
+if (file != null) {
+    // Read 1MB asynchronously
+    file.read(1024 * 1024, (result, data) -> {
+        if (result == 0) {
+            trace('Read ${data.size} bytes into native memory.');
+            // data.toBytes() to move to Haxe, or use getPointer() for native work
+        }
+        data.free(); // Manually free native memory
+        file.close();
+    });
+}
+
+// Keep polling the loop to process completions
+while (true) {
+    loop.poll(10); 
+}
 ```
 
 ## Safety & Security Considerations

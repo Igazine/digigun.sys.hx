@@ -4,9 +4,9 @@
         "license": "MIT",
         "tags": ["sys", "cpp", "fifo", "unix", "socket", "network"],
         "description": "System extension library for Haxe (CPP target)",
-        "version": "0.3.2",
+        "version": "0.4.0",
         "classPath": "src",
         "contributors": ["igazine"],
-        "releasenote": "Implemented Native Event Loops (Phase 3) with Kqueue/Epoll/IOCP support and completion-based async I/O.",
+        "releasenote": "Implemented Phase 4: Async File I/O and Native Buffer management (malloc-based) with cross-platform parity.",
         "dependencies": {}
 }

@@ -62,6 +62,26 @@ class NativeLoop {
         return submit(fd, WRITE, buffer, callback);
     }
 
+    public function readNative(fd:NativeHandle, buffer:NativeBuffer, callback:(result:Int, bytes:Int)->Void):Int {
+        return submitNative(fd, READ, buffer, callback);
+    }
+
+    public function writeNative(fd:NativeHandle, buffer:NativeBuffer, callback:(result:Int, bytes:Int)->Void):Int {
+        return submitNative(fd, WRITE, buffer, callback);
+    }
+
+    public function submitNative(fd:NativeHandle, op:LoopOp, buffer:NativeBuffer, callback:(result:Int, bytes:Int)->Void):Int {
+        var id = _nextId++;
+        _requests.set(id, callback);
+        
+        var res = Native.submit(handle.value, fd.value, (op : Int), buffer.getPointer(), buffer.size, _nativeCallback, untyped __cpp__("(void*)(size_t){0}", id));
+        
+        if (res < 0) {
+            _requests.remove(id);
+        }
+        return res;
+    }
+
     public function submit(fd:NativeHandle, op:LoopOp, buffer:haxe.io.Bytes, callback:(result:Int, bytes:Int)->Void):Int {
         var id = _nextId++;
         _requests.set(id, callback);

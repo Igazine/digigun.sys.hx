@@ -23,7 +23,8 @@ import digigun.sys.service.Service;
 import digigun.sys.dl.Dl;
 import digigun.sys.dl.FFI;
 import digigun.sys.io.NativeLoop;
-import digigun.sys.io.IO;
+import digigun.sys.io.NativeBuffer;
+import digigun.sys.io.AsyncFile;
 import sys.FileSystem;
 import cpp.Callable;
 
@@ -109,8 +110,73 @@ class Main {
         testDl();
         testFfi();
         testNativeLoop();
+        testAsyncFile();
 
         trace("All architecture and implementation checks complete.");
+    }
+
+    static function testAsyncFile() {
+        trace("--- Testing Async File I/O (Phase 4) ---");
+        var loop = new NativeLoop();
+        var testPath = getTestPath("test_async_file.txt");
+        var content = "This data was written asynchronously using native threads/IOCP.";
+        
+        try { if (FileSystem.exists(testPath)) FileSystem.deleteFile(testPath); } catch(e:Dynamic) {}
+
+        // Test Async Write
+        var file = AsyncFile.open(loop, testPath, true);
+        if (file != null) {
+            trace("  File opened for async write.");
+            var buf = new NativeBuffer(content.length);
+            buf.fromBytes(haxe.io.Bytes.ofString(content));
+            
+            var completed = false;
+            file.write(buf, (result, bytes) -> {
+                trace('  WRITE CALLBACK: Result=$result, Bytes=$bytes');
+                completed = true;
+            });
+
+            loop.poll(1000);
+            file.close();
+            buf.free();
+
+            if (completed) {
+                trace("  Async Write: SUCCESS");
+            } else {
+                trace("  Async Write: FAILED (No callback)");
+            }
+        } else {
+            trace("  FAILED: Could not open file for async write.");
+        }
+
+        // Test Async Read
+        var fileRead = AsyncFile.open(loop, testPath, false);
+        if (fileRead != null) {
+            trace("  File opened for async read.");
+            var completed = false;
+            fileRead.read(content.length, (result, data) -> {
+                var readBack = data.toBytes().toString();
+                trace('  READ CALLBACK: Result=$result, Content="$readBack"');
+                if (readBack == content) trace("  Async Read Content Verification: SUCCESS");
+                else trace("  Async Read Content Verification: FAILED");
+                completed = true;
+                data.free();
+            });
+
+            loop.poll(1000);
+            fileRead.close();
+
+            if (completed) {
+                trace("  Async Read: SUCCESS");
+            } else {
+                trace("  Async Read: FAILED (No callback)");
+            }
+        } else {
+            trace("  FAILED: Could not open file for async read.");
+        }
+
+        loop.close();
+        try { if (FileSystem.exists(testPath)) FileSystem.deleteFile(testPath); } catch(e:Dynamic) {}
     }
 
     static function testAuth() {

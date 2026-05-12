@@ -20,6 +20,13 @@ extern "C" {
      */
     DIGIGUN_API long long io_open_file(const char* path, int write_mode);
     DIGIGUN_API void io_close_file(long long handle);
+
+    /**
+     * Buffer Management
+     */
+    DIGIGUN_API long long buffer_alloc(int size);
+    DIGIGUN_API void buffer_free(long long handle);
+    DIGIGUN_API void* buffer_get_ptr(long long handle);
 }
 
 #endif // IO_NATIVE_H

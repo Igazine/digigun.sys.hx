@@ -1,4 +1,5 @@
 #include "io_native.h"
+#include <stdlib.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -72,7 +73,7 @@ long long io_open_file(const char* path, int write_mode) {
 #ifdef _WIN32
     DWORD access = GENERIC_READ;
     if (write_mode) access |= GENERIC_WRITE;
-    HANDLE h = CreateFileA(path, access, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE h = CreateFileA(path, access, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL);
     return (long long)(size_t)h;
 #else
     int flags = write_mode ? (O_RDWR | O_CREAT) : O_RDONLY;
@@ -85,8 +86,20 @@ void io_close_file(long long handle) {
 #ifdef _WIN32
     CloseHandle((HANDLE)(size_t)handle);
 #else
-    close((int)(size_t)handle);
+    close((int)handle);
 #endif
+}
+
+long long buffer_alloc(int size) {
+    return (long long)(size_t)malloc(size);
+}
+
+void buffer_free(long long handle) {
+    free((void*)(size_t)handle);
+}
+
+void* buffer_get_ptr(long long handle) {
+    return (void*)(size_t)handle;
 }
 
 } // extern "C"
