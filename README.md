@@ -33,6 +33,7 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - **FFI Infrastructure**: Smart `@:build` macros for automated proxy generation with `String`/`Bool` auto-conversion and automated struct layout mapping.
 - **Native Event Loops**: Completion-based (Proactor) engine for high-performance async I/O (kqueue, epoll, IOCP).
 - **Async File I/O**: Non-blocking file operations with native buffer management to minimize GC overhead.
+- **Advanced Native Buffers**: Optimized `RingBuffer`, `BipBuffer` (contiguous), and `ChunkedBuffer` (linked) for high-speed streaming.
 
 ## Status Legend
 
@@ -139,6 +140,12 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] **Native Completion (Windows)** - Native IOCP support for regular files ✅
 - [x] **NativeBuffer** - `malloc`-based memory management outside Haxe GC ✅
 - [x] **AsyncFile API** - High-level completion-driven file API ✅
+
+### Advanced Native Buffers (`digigun.sys.io` expansion) ✅
+- [x] **RingBuffer** - Fixed-size native circular buffer ✅
+- [x] **BipBuffer** - Bipartite contiguous memory buffer ✅
+- [x] **ChunkedBuffer** - Dynamic linked native chunks ✅
+- [x] **Haxe Integration** - Full `haxe.io.Input`/`Output` compatibility ✅
 
 ### Future / Research ⏳
 - [ ] `io_uring` - Kernel-level completion engine for Linux ⏳
@@ -376,6 +383,34 @@ if (file != null) {
 while (true) {
     loop.poll(10); 
 }
+```
+
+### Advanced Native Buffers
+Use specialized buffers for zero-copy streaming and contiguous memory access.
+
+```haxe
+import digigun.sys.io.BipBuffer;
+
+var buffer = new BipBuffer(1024 * 1024); // 1MB
+
+// Contiguous write reservation
+var res = buffer.reserve(4096);
+if (res.ptr != null) {
+    // res.ptr is a raw native pointer
+    // populate res.ptr via native FFI or C++
+    buffer.commit(4096);
+}
+
+// Contiguous read access
+var info = buffer.getReadPtr();
+if (info.ptr != null) {
+    // Process info.len bytes from info.ptr
+    buffer.decommit(info.len);
+}
+
+// Use with standard Haxe tools
+var input = buffer.asInput();
+var str = input.readString(10);
 ```
 
 ## Safety & Security Considerations

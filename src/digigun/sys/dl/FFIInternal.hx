@@ -13,6 +13,13 @@ extern "C" long long loop_create();
 extern "C" void loop_close(long long);
 extern "C" int loop_submit(long long, long long, int, void*, int, void*, void*);
 extern "C" int loop_poll(long long, int);
+
+extern "C" long long ring_buffer_create(int);
+extern "C" void ring_buffer_destroy(long long);
+extern "C" long long bip_buffer_create(int);
+extern "C" void bip_buffer_destroy(long long);
+extern "C" long long chunked_buffer_create(int);
+extern "C" void chunked_buffer_destroy(long long);
 ')
 class FFIInternal {
     #if cpp
@@ -37,6 +44,24 @@ class FFIInternal {
     @:native("loop_poll")
     static function _loop_poll(h:haxe.Int64, t:Int):Int return 0;
 
+    @:native("ring_buffer_create")
+    static function _ring_buffer_create(s:Int):haxe.Int64 return 0;
+
+    @:native("ring_buffer_destroy")
+    static function _ring_buffer_destroy(h:haxe.Int64):Void {}
+
+    @:native("bip_buffer_create")
+    static function _bip_buffer_create(s:Int):haxe.Int64 return 0;
+
+    @:native("bip_buffer_destroy")
+    static function _bip_buffer_destroy(h:haxe.Int64):Void {}
+
+    @:native("chunked_buffer_create")
+    static function _chunked_buffer_create(s:Int):haxe.Int64 return 0;
+
+    @:native("chunked_buffer_destroy")
+    static function _chunked_buffer_destroy(h:haxe.Int64):Void {}
+
     public static function force():Void {
         if (false) {
             _process_echo(null);
@@ -46,6 +71,12 @@ class FFIInternal {
             _loop_close(0);
             _loop_submit(0, 0, 0, null, 0, null, null);
             _loop_poll(0, 0);
+            _ring_buffer_create(0);
+            _ring_buffer_destroy(0);
+            _bip_buffer_create(0);
+            _bip_buffer_destroy(0);
+            _chunked_buffer_create(0);
+            _chunked_buffer_destroy(0);
         }
     }
     #end

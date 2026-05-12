@@ -23,6 +23,7 @@
         <file name="${haxelib:digigun.sys.hx}/native/src/service_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/dl_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/loop_native.cpp"/>
+        <file name="${haxelib:digigun.sys.hx}/native/src/buffer_native.cpp"/>
     </files>
 
     <files id="haxe">

@@ -111,8 +111,63 @@ class Main {
         testFfi();
         testNativeLoop();
         testAsyncFile();
+        testAdvancedBuffers();
 
         trace("All architecture and implementation checks complete.");
+    }
+
+    static function testAdvancedBuffers() {
+        trace("--- Testing Advanced Native Buffers (Phase 6) ---");
+        
+        // 1. RingBuffer Test
+        var rb = new digigun.sys.io.RingBuffer(1024);
+        var data1 = haxe.io.Bytes.ofString("RingBufferData");
+        rb.writeBytes(data1, 0, data1.length);
+        var read1 = haxe.io.Bytes.alloc(data1.length);
+        rb.readBytes(read1, 0, read1.length);
+        if (read1.toString() == data1.toString()) trace("  RingBuffer: SUCCESS");
+        else trace("  RingBuffer: FAILED");
+        rb.destroy();
+
+        // 2. BipBuffer Test
+        var bb = new digigun.sys.io.BipBuffer(1024);
+        var data2 = haxe.io.Bytes.ofString("BipBufferData");
+        bb.writeBytes(data2, 0, data2.length);
+        
+        // Test contiguous access
+        var readInfo:digigun.sys.io.BipBuffer.BipPointer = bb.getReadPtr();
+        if (readInfo.ptr != null && readInfo.len >= data2.length) {
+            var read2 = haxe.io.Bytes.alloc(data2.length);
+            // Copy from native pointer to verify
+            var dst:cpp.RawPointer<cpp.Void> = cast untyped __cpp__("(void*)&{0}->b[0]", read2);
+            var src:cpp.RawPointer<cpp.Void> = readInfo.ptr;
+            untyped __cpp__("memcpy({0}, {1}, {2})", dst, src, data2.length);
+            if (read2.toString() == data2.toString()) trace("  BipBuffer Contiguous Read: SUCCESS");
+        }
+        bb.destroy();
+
+        // 3. ChunkedBuffer Test
+        var cb = new digigun.sys.io.ChunkedBuffer(32); // small chunks
+        var largeData = haxe.io.Bytes.alloc(100);
+        for (i in 0...100) largeData.set(i, i);
+        cb.writeBytes(largeData, 0, 100);
+        trace('  ChunkedBuffer available: ${cb.available}');
+        var read3 = haxe.io.Bytes.alloc(100);
+        cb.readBytes(read3, 0, 100);
+        var success3 = true;
+        for (i in 0...100) if (read3.get(i) != i) success3 = false;
+        if (success3) trace("  ChunkedBuffer: SUCCESS");
+        else trace("  ChunkedBuffer: FAILED");
+        cb.destroy();
+
+        // 4. Input/Output Test
+        var rb2 = new digigun.sys.io.RingBuffer(1024);
+        var output = rb2.asOutput();
+        output.writeString("IOTest");
+        var input = rb2.asInput();
+        if (input.readString(6) == "IOTest") trace("  Buffer I/O Wrappers: SUCCESS");
+        else trace("  Buffer I/O Wrappers: FAILED");
+        rb2.destroy();
     }
 
     static function testAsyncFile() {
