@@ -34,6 +34,7 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - **Native Event Loops**: Completion-based (Proactor) engine for high-performance async I/O (kqueue, epoll, IOCP).
 - **Async File I/O**: Non-blocking file operations with native buffer management to minimize GC overhead.
 - **Advanced Native Buffers**: Optimized `RingBuffer`, `BipBuffer` (contiguous), and `ChunkedBuffer` (linked) for high-speed streaming.
+- **Resilient Diagnostics**: Native crash interception for Segfaults and Access Violations with minidump generation.
 
 ## Status Legend
 
@@ -147,9 +148,15 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] **ChunkedBuffer** - Dynamic linked native chunks ✅
 - [x] **Haxe Integration** - Full `haxe.io.Input`/`Output` compatibility ✅
 
+### Resilient Diagnostics (`digigun.sys.rt`) ✅
+- [x] **Native Crash Handler** - Interception of SIGSEGV, SIGABRT, and Access Violations ✅
+- [x] **Stack Trace Capture** - Text-based backtrace generation for all platforms ✅
+- [x] **Minidump Generation** - Standard `.dmp` files for Windows ARM64/x64 ✅
+
 ### Future / Research ⏳
 - [ ] `io_uring` - Kernel-level completion engine for Linux ⏳
-- [ ] Phase 5: Resilient Diagnostics - Native crash handler and minidumps ⏳
+- [ ] Phase 6: Fibers - Cooperative multitasking and stack-switching ⏳
+- [ ] Phase 7: Advanced Synchronization - Native Futex and WaitOnAddress ⏳
 - [ ] Tier 4: Hardware & Serial IPC - Unified UART and USB HID access ⏳
 
 > **Note for Linux:** Extended attributes (xattr) require a supporting filesystem (e.g., ext4, xfs, btrfs) mounted with `user_xattr` support. Standard Docker `overlayfs` may not support the `user.` namespace used by this library.
@@ -411,6 +418,20 @@ if (info.ptr != null) {
 // Use with standard Haxe tools
 var input = buffer.asInput();
 var str = input.readString(10);
+```
+
+### Resilient Diagnostics (Minidumps)
+Enable native crash interception to capture stack traces when a fatal error occurs.
+
+```haxe
+import digigun.sys.rt.RtControl;
+
+// Setup a crash handler that writes to a specific file
+// On Windows, this also generates a .dmp file at the same path
+RtControl.setupCrashHandler("path/to/crash_report.txt");
+
+// If a native segfault or access violation occurs, a report is generated
+// containing the C++/Haxe stack trace.
 ```
 
 ## Safety & Security Considerations
