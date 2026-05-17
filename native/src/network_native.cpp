@@ -28,6 +28,23 @@
 #endif
 #endif
 
+#ifdef __APPLE__
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <net/bpf.h>
+#endif
+
+#ifdef __linux__
+#include <sys/ioctl.h>
+#include <linux/if_ether.h>
+#include <linux/if_packet.h>
+#include <net/if.h>
+#endif
+
+#ifdef _WIN32
+#include <mstcpip.h>
+#endif
+
 // Mass Ping Session management
 struct PingSession {
     int socket_fd;
@@ -37,6 +54,21 @@ struct PingSession {
 static std::map<long long, PingSession*> g_ping_sessions;
 static std::mutex g_ping_sessions_mtx;
 static long long g_ping_session_id = 1;
+
+/**
+ * Raw Sniffer State
+ */
+struct RawSniffer {
+    int fd;
+    int buf_len;
+#ifdef _WIN32
+    SOCKET sock;
+#endif
+};
+
+static std::map<long long, RawSniffer*> g_sniffers;
+static std::mutex g_sniffers_mtx;
+static long long g_sniffer_id = 1;
 
 extern "C" {
 
@@ -227,6 +259,124 @@ void ping_session_close(long long handle) {
         }
         delete session;
         g_ping_sessions.erase(handle);
+    }
+}
+
+long long network_raw_sniffer_open(const char* interface_name, int promiscuous) {
+    RawSniffer* sniffer = new RawSniffer();
+    sniffer->buf_len = 65536;
+
+#ifdef __APPLE__
+    // macOS: Berkeley Packet Filter
+    char bpf_dev[16];
+    sniffer->fd = -1;
+    for (int i = 0; i < 99; i++) {
+        snprintf(bpf_dev, sizeof(bpf_dev), "/dev/bpf%d", i);
+        sniffer->fd = open(bpf_dev, O_RDWR);
+        if (sniffer->fd != -1) break;
+        if (errno != EBUSY) break;
+    }
+    if (sniffer->fd == -1) { delete sniffer; return 0; }
+
+    // Set buffer length
+    ioctl(sniffer->fd, BIOCSBLEN, &sniffer->buf_len);
+    
+    // Bind to interface
+    struct ifreq ifr;
+    strncpy(ifr.ifr_name, interface_name, IFNAMSIZ);
+    if (ioctl(sniffer->fd, BIOCSETIF, &ifr) == -1) { close(sniffer->fd); delete sniffer; return 0; }
+
+    // Immediate mode (don't buffer)
+    unsigned int enable = 1;
+    ioctl(sniffer->fd, BIOCIMMEDIATE, &enable);
+    
+    if (promiscuous) ioctl(sniffer->fd, BIOCPROMISC, NULL);
+
+#elif defined(_WIN32)
+    // Windows: SIO_RCVALL
+    sniffer->sock = socket(AF_INET, SOCK_RAW, IPPROTO_IP);
+    if (sniffer->sock == INVALID_SOCKET) { delete sniffer; return 0; }
+
+    sockaddr_in local;
+    local.sin_family = AF_INET;
+    local.sin_addr.s_addr = inet_addr(interface_name); // On Windows, user must provide local IP
+    local.sin_port = htons(0);
+
+    if (bind(sniffer->sock, (sockaddr*)&local, sizeof(local)) == SOCKET_ERROR) {
+        closesocket(sniffer->sock); delete sniffer; return 0;
+    }
+
+    int optval = promiscuous ? RCVALL_ON : RCVALL_OFF;
+    DWORD dwBytesRet = 0;
+    if (WSAIoctl(sniffer->sock, SIO_RCVALL, &optval, sizeof(optval), NULL, 0, &dwBytesRet, NULL, NULL) == SOCKET_ERROR) {
+        closesocket(sniffer->sock); delete sniffer; return 0;
+    }
+    sniffer->fd = (int)sniffer->sock;
+
+#else
+    // Linux: AF_PACKET
+    sniffer->fd = socket(AF_PACKET, SOCK_RAW, htons(0x0003)); // ETH_P_ALL = 0x0003
+    if (sniffer->fd == -1) { delete sniffer; return 0; }
+
+    struct ifreq ifr;
+    strncpy(ifr.ifr_name, interface_name, IFNAMSIZ);
+    if (ioctl(sniffer->fd, SIOCGIFINDEX, &ifr) == -1) { close(sniffer->fd); delete sniffer; return 0; }
+
+    struct sockaddr_ll sll;
+    memset(&sll, 0, sizeof(sll));
+    sll.sll_family = AF_PACKET;
+    sll.sll_ifindex = ifr.ifr_ifindex;
+    sll.sll_protocol = htons(0x0003);
+
+    if (bind(sniffer->fd, (struct sockaddr*)&sll, sizeof(sll)) == -1) { close(sniffer->fd); delete sniffer; return 0; }
+
+    if (promiscuous) {
+        struct packet_mreq mr;
+        memset(&mr, 0, sizeof(mr));
+        mr.mr_ifindex = ifr.ifr_ifindex;
+        mr.mr_type = PACKET_MR_PROMISC;
+        setsockopt(sniffer->fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &mr, sizeof(mr));
+    }
+#endif
+
+    std::lock_guard<std::mutex> lock(g_sniffers_mtx);
+    long long id = g_sniffer_id++;
+    g_sniffers[id] = sniffer;
+    return id;
+}
+
+int network_raw_sniffer_read(long long handle, void* buffer, int length) {
+    std::lock_guard<std::mutex> lock(g_sniffers_mtx);
+    if (g_sniffers.find(handle) == g_sniffers.end()) return -1;
+    RawSniffer* sniffer = g_sniffers[handle];
+
+#ifdef __APPLE__
+    // BPF returns packets wrapped in bpf_hdr
+    static char bpf_internal_buf[65536];
+    int bytes = read(sniffer->fd, bpf_internal_buf, sizeof(bpf_internal_buf));
+    if (bytes <= 0) return bytes;
+    
+    struct bpf_hdr* hdr = (struct bpf_hdr*)bpf_internal_buf;
+    int packet_len = hdr->bh_caplen;
+    if (packet_len > length) packet_len = length;
+    memcpy(buffer, bpf_internal_buf + hdr->bh_hdrlen, packet_len);
+    return packet_len;
+#else
+    return recv(sniffer->fd, (char*)buffer, length, 0);
+#endif
+}
+
+void network_raw_sniffer_close(long long handle) {
+    std::lock_guard<std::mutex> lock(g_sniffers_mtx);
+    if (g_sniffers.find(handle) != g_sniffers.end()) {
+        RawSniffer* sniffer = g_sniffers[handle];
+#ifdef _WIN32
+        closesocket(sniffer->sock);
+#else
+        close(sniffer->fd);
+#endif
+        delete sniffer;
+        g_sniffers.erase(handle);
     }
 }
 

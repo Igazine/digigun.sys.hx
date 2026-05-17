@@ -4,6 +4,7 @@ import digigun.sys.network.Network;
 import digigun.sys.network.NetworkControl;
 import digigun.sys.network.SocketOption;
 import digigun.sys.network.PingSession;
+import digigun.sys.network.RawSocket;
 import digigun.sys.process.Process;
 import digigun.sys.shm.SharedMemory;
 import digigun.sys.info.SystemInfo;
@@ -116,6 +117,7 @@ class Main {
         testNativeLoop();
         testAsyncFile();
         testAdvancedBuffers();
+        testRawSocket();
         
         var args = Sys.args();
         if (args.indexOf("--crash-test") != -1) {
@@ -582,6 +584,35 @@ class Main {
                 trace("  FAILED: Could not create FIFO.");
             }
             loop.close();
+        }
+    }
+
+    static function testRawSocket() {
+        trace("--- Testing Raw Network Sockets (Packet Sniffing) ---");
+        var iface = switch (Sys.systemName()) {
+            case "Windows": "127.0.0.1";
+            default: "lo0";
+        };
+
+        trace('  Attempting to open raw sniffer on interface: $iface');
+        var sniffer = RawSocket.create(iface, true);
+        if (sniffer != null) {
+            trace("  Raw sniffer opened successfully.");
+            var buf = new digigun.sys.io.NativeBuffer(65536);
+            
+            trace("  Waiting for a packet...");
+            var bytes = sniffer.readPacket(buf);
+            if (bytes > 0) {
+                trace('  Captured raw packet of $bytes bytes.');
+            } else {
+                trace("  No packets captured during timeout.");
+            }
+            
+            buf.free();
+            sniffer.close();
+            trace("  Raw sniffer closed.");
+        } else {
+            trace("  Skipping RawSocket test: Requires Root/Admin privileges.");
         }
     }
 

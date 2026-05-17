@@ -71,6 +71,13 @@ extern "C" {
     DIGIGUN_API struct NativePingReply* ping_session_recv(long long handle);
     DIGIGUN_API void ping_session_free_replies(struct NativePingReply* list);
     DIGIGUN_API void ping_session_close(long long handle);
+
+    /**
+     * Raw Sockets / Sniffing
+     */
+    DIGIGUN_API long long network_raw_sniffer_open(const char* interface_name, int promiscuous);
+    DIGIGUN_API int       network_raw_sniffer_read(long long handle, void* buffer, int length);
+    DIGIGUN_API void      network_raw_sniffer_close(long long handle);
 }
 
 #endif // NETWORK_NATIVE_H

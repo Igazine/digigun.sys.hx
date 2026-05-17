@@ -4,9 +4,9 @@
         "license": "MIT",
         "tags": ["sys", "cpp", "fifo", "unix", "socket", "network"],
         "description": "System extension library for Haxe (CPP target)",
-        "version": "0.5.2",
+        "version": "0.5.3",
         "classPath": "src",
         "contributors": ["igazine"],
-        "releasenote": "Added 64-bit File Stats, FileType discovery, and Permission management (v0.5.2).",
+        "releasenote": "Implemented Raw Network Sockets for packet sniffing and injection (v0.5.3).",
         "dependencies": {}
 }
