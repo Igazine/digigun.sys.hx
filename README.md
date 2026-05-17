@@ -36,6 +36,7 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - **Advanced Native Buffers**: Optimized `RingBuffer`, `BipBuffer` (contiguous), and `ChunkedBuffer` (linked) for high-speed streaming.
 - **Resilient Diagnostics**: Native crash interception for Segfaults and Access Violations with minidump generation.
 - **Symlink Management**: Cross-platform symbolic link creation and target resolution.
+- **Advanced File Diagnostics**: 64-bit file stats (bypassing 32-bit limits), FileType discovery, and Permission bitmasks.
 
 ## Status Legend
 
@@ -157,6 +158,11 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 ### Symlink Management (`digigun.sys.fs`) ✅
 - [x] **Cross-platform Creation** - `symlink` (POSIX) and `CreateSymbolicLink` (Windows) ✅
 - [x] **Target Resolution** - `readlink` (POSIX) and `GetFinalPathNameByHandle` (Windows) ✅
+
+### Advanced File Diagnostics (`digigun.sys.fs`) ✅
+- [x] **64-bit Statistics** - `stat64` support for files > 2GB via `haxe.Int64` ✅
+- [x] **FileType Discovery** - Enum-based detection of Sockets, Fifos, Symlinks, etc. ✅
+- [x] **Permission Management** - Unified `chmod` using OR'ed bitmasks ✅
 
 ### Future / Research ⏳
 - [ ] `io_uring` - Kernel-level completion engine for Linux ⏳
@@ -453,6 +459,23 @@ if (Symlink.create("target_file.txt", "my_link.txt")) {
 // Read a symlink's target
 var target = Symlink.read("my_link.txt");
 trace('Points to: $target');
+```
+
+### Advanced File Diagnostics
+Retrieve detailed 64-bit statistics and manage permissions via bitmasks.
+
+```haxe
+import digigun.sys.fs.FileDiagnostics;
+
+// Get 64-bit stats
+var stats = FileDiagnostics.stat("large_file.iso");
+if (stats != null) {
+    trace('Size: ${stats.size} bytes'); // Native haxe.Int64
+    trace('Type: ${stats.type.toString()}'); // e.g., RegularFile, Directory, Socket
+}
+
+// Manage permissions without octals
+FileDiagnostics.chmod("script.sh", OWNER_READ | OWNER_WRITE | OWNER_EXEC);
 ```
 
 ## Safety & Security Considerations

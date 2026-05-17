@@ -40,6 +40,21 @@ extern "C" {
      */
     DIGIGUN_API int fs_symlink_create(const char* target, const char* linkpath);
     DIGIGUN_API int fs_symlink_read(const char* path, char* buffer, int length);
+
+    /**
+     * Advanced File Stats & Permissions
+     */
+    typedef struct {
+        long long size;
+        double atime;
+        double mtime;
+        double ctime;
+        int mode;
+        int type; // Matches FileType enum in Haxe
+    } fs_stat_t;
+
+    DIGIGUN_API int fs_stat(const char* path, void* out);
+    DIGIGUN_API int fs_chmod(const char* path, int mode);
 }
 
 #endif // FS_NATIVE_H

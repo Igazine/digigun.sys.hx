@@ -12,6 +12,7 @@
 #include <windows.h>
 #else
 #include <sys/file.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
 #include <sys/mman.h>
@@ -432,6 +433,96 @@ int fs_symlink_read(const char* path, char* buffer, int length) {
     if (res < 0) return -1;
     if (res < length) buffer[res] = '\0';
     return (int)res;
+#endif
+}
+
+int fs_stat(const char* path, void* out_ptr) {
+    fs_stat_t* out = (fs_stat_t*)out_ptr;
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA data;
+    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &data)) return -1;
+    
+    LARGE_INTEGER li;
+    li.LowPart = data.nFileSizeLow;
+    li.HighPart = data.nFileSizeHigh;
+    out->size = li.QuadPart;
+
+    // Convert FILETIME to Unix timestamp (seconds)
+    auto filetimeToDouble = [](FILETIME ft) -> double {
+        ULARGE_INTEGER ull;
+        ull.LowPart = ft.dwLowDateTime;
+        ull.HighPart = ft.dwHighDateTime;
+        return (double)(ull.QuadPart - 116444736000000000ULL) / 10000000.0;
+    };
+
+    out->atime = filetimeToDouble(data.ftLastAccessTime);
+    out->mtime = filetimeToDouble(data.ftLastWriteTime);
+    out->ctime = filetimeToDouble(data.ftCreationTime);
+    
+    out->mode = 0;
+    if (data.dwFileAttributes & FILE_ATTRIBUTE_READONLY) out->mode |= 0444; // Best effort readable
+    else out->mode |= 0666; // Best effort readable/writable
+
+    if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) out->type = 2; // Directory
+    else if (data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+        // Check if it's a symlink specifically
+        HANDLE h = CreateFileA(path, 0, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, NULL);
+        if (h != INVALID_HANDLE_VALUE) {
+            BYTE buf[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
+            DWORD bytes;
+            if (DeviceIoControl(h, FSCTL_GET_REPARSE_POINT, NULL, 0, buf, sizeof(buf), &bytes, NULL)) {
+                REPARSE_GUID_DATA_BUFFER* rgdb = (REPARSE_GUID_DATA_BUFFER*)buf;
+                if (rgdb->ReparseTag == IO_REPARSE_TAG_SYMLINK) out->type = 9; // Symlink
+                else out->type = 7; // ReparseFile
+            } else out->type = 7;
+            CloseHandle(h);
+        } else out->type = 7;
+    } else {
+        if (out->size == 0) out->type = 3; // Empty
+        else out->type = 6; // RegularFile
+    }
+    return 0;
+#else
+    struct stat st;
+    if (stat(path, &st) != 0) return errno;
+    
+    out->size = (long long)st.st_size;
+    out->atime = (double)st.st_atime;
+    out->mtime = (double)st.st_mtime;
+    out->ctime = (double)st.st_ctime;
+    out->mode = (int)st.st_mode;
+
+    if (S_ISREG(st.st_mode)) {
+        if (st.st_size == 0) out->type = 3; // Empty
+        else out->type = 6; // RegularFile
+    }
+    else if (S_ISDIR(st.st_mode)) out->type = 2;
+    else if (S_ISLNK(st.st_mode)) out->type = 9;
+    else if (S_ISCHR(st.st_mode)) out->type = 1;
+    else if (S_ISBLK(st.st_mode)) out->type = 0;
+    else if (S_ISFIFO(st.st_mode)) out->type = 4;
+    else if (S_ISSOCK(st.st_mode)) out->type = 8;
+    else out->type = 5; // Other
+
+    return 0;
+#endif
+}
+
+int fs_chmod(const char* path, int mode) {
+#ifdef _WIN32
+    DWORD attr = GetFileAttributesA(path);
+    if (attr == INVALID_FILE_ATTRIBUTES) return (int)GetLastError();
+    
+    // Simplistic mapping: if any "write" bit is set, clear READONLY.
+    // Unix Write bits: 0222 (owner/group/other write)
+    if (mode & 0222) attr &= ~FILE_ATTRIBUTE_READONLY;
+    else attr |= FILE_ATTRIBUTE_READONLY;
+    
+    if (SetFileAttributesA(path, attr)) return 0;
+    return (int)GetLastError();
+#else
+    if (chmod(path, (mode_t)mode) == 0) return 0;
+    return errno;
 #endif
 }
 

@@ -12,6 +12,7 @@ import digigun.sys.fs.FileLock;
 import digigun.sys.fs.MemoryMap;
 import digigun.sys.fs.ExtendedAttributes;
 import digigun.sys.fs.Symlink;
+import digigun.sys.fs.FileDiagnostics;
 import digigun.sys.sync.NamedSemaphore;
 import digigun.sys.proc.ProcControl;
 import digigun.sys.time.Time;
@@ -99,6 +100,7 @@ class Main {
         testMemoryMap();
         testWatcher();
         testSymlink();
+        testFileDiagnostics();
         testExtendedAttributes();
         testDirectIO();
         testFifo();
@@ -337,9 +339,9 @@ class Main {
 
         sys.io.File.saveContent(targetPath, "Symlink target content");
         
-        if (Symlink.create(targetPath, linkPath)) {
+        if (digigun.sys.fs.Symlink.create(targetPath, linkPath)) {
             trace("  Symlink created.");
-            var readPath = Symlink.read(linkPath);
+            var readPath = digigun.sys.fs.Symlink.read(linkPath);
             trace('  Read target path: $readPath');
             
             if (readPath != null && (readPath == targetPath || readPath.indexOf("symlink_target.txt") != -1)) {
@@ -355,6 +357,42 @@ class Main {
             if (sys.FileSystem.exists(linkPath)) sys.FileSystem.deleteFile(linkPath);
             if (sys.FileSystem.exists(targetPath)) sys.FileSystem.deleteFile(targetPath);
         } catch(e:Dynamic) {}
+    }
+
+    static function testFileDiagnostics() {
+        trace("--- Testing Advanced File Diagnostics (Phase: Stats/Permissions) ---");
+        var testPath = getTestPath("diag_test.dat");
+        var content = "Diagnostic data for 64-bit size test.";
+        sys.io.File.saveContent(testPath, content);
+
+        var stats = FileDiagnostics.stat(testPath);
+        if (stats != null) {
+            trace('  File Size: ${stats.size} bytes');
+            trace('  File Type: ${stats.type.toString()}');
+            trace('  Permissions Mask: 0x${StringTools.hex(stats.mode, 4)}');
+            trace('  Modified Time: ${Date.fromTime(stats.mtime * 1000).toString()}');
+
+            if (stats.size == content.length) trace("  64-bit Size Verification: SUCCESS");
+            if (stats.type == RegularFile) trace("  File Type Verification: SUCCESS");
+
+            // Test chmod (if POSIX)
+            if (Sys.systemName() != "Windows") {
+                trace("  Attempting chmod 0444 (read-only)...");
+                if (FileDiagnostics.chmod(testPath, FilePermission.OWNER_READ | FilePermission.GROUP_READ | FilePermission.OTHERS_READ)) {
+                    var newStats = FileDiagnostics.stat(testPath);
+                    trace('    New permissions: 0x${StringTools.hex(newStats.mode, 4)}');
+                }
+            }
+        } else {
+            trace("  FAILED to retrieve file statistics.");
+        }
+
+        // Test Directory Type
+        var dirType = FileDiagnostics.getType(getTestPath(""));
+        trace('  Directory Type check: ${dirType.toString()}');
+        if (dirType == Directory) trace("  Directory Type Verification: SUCCESS");
+
+        try { if (sys.FileSystem.exists(testPath)) sys.FileSystem.deleteFile(testPath); } catch(e:Dynamic) {}
     }
 
     static function testExtendedAttributes() {

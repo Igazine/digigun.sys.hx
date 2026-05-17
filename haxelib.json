@@ -4,9 +4,9 @@
         "license": "MIT",
         "tags": ["sys", "cpp", "fifo", "unix", "socket", "network"],
         "description": "System extension library for Haxe (CPP target)",
-        "version": "0.5.1",
+        "version": "0.5.2",
         "classPath": "src",
         "contributors": ["igazine"],
-        "releasenote": "Added cross-platform Symbolic Link management and native crash handling (v0.5.0/v0.5.1).",
+        "releasenote": "Added 64-bit File Stats, FileType discovery, and Permission management (v0.5.2).",
         "dependencies": {}
 }
