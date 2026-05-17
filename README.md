@@ -37,6 +37,9 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - **Resilient Diagnostics**: Native crash interception for Segfaults and Access Violations with minidump generation.
 - **Symlink Management**: Cross-platform symbolic link creation and target resolution.
 - **Advanced File Diagnostics**: 64-bit file stats (bypassing 32-bit limits), FileType discovery, and Permission bitmasks.
+- **Volume Metadata**: Retrieve filesystem type (NTFS/APFS/ext4), labels, and volume serials/UUIDs.
+- **Process Guard**: Ensure child processes terminate if the parent process dies (`exitWithParent`).
+- **Modernized Public API**: All `cpp.*` package types are abstracted away. High-performance memory management uses `NativeBuffer` and `haxe.Int64` addresses.
 
 ## Status Legend
 
@@ -76,6 +79,7 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 ### Process Functions (`digigun.sys.process`) ✅
 - [x] `isRoot()` - Check for root/admin privileges ✅
 - [x] `fork()` - Native process forking with Windows emulation ✅
+- [x] `exitWithParent()` - Automatic child termination on parent death ✅
 - [x] `getFileResourceLimit()` - Get open file descriptor limit ✅
 - [x] `setFileResourceLimit()` - Set open file descriptor limit ✅
 - [x] `listProcesses()` - List running processes and their stats ✅
@@ -168,8 +172,8 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 ### Future / Research ⏳
 - [ ] `io_uring` - Kernel-level completion engine for Linux ⏳
 - [ ] Phase 6: Fibers - Cooperative multitasking and stack-switching ⏳
-- [ ] Phase 7: Advanced Synchronization - Native Futex and WaitOnAddress ⏳
-- [ ] Tier 4: Hardware & Serial IPC - Unified UART and USB HID access ⏳
+- [x] Phase 7: Advanced Synchronization - Native Futex and WaitOnAddress ✅
+- [x] Tier 4: Hardware & Serial IPC - Unified UART and USB HID access ✅ (Initial Serial Port Implemented)
 
 > **Note for Linux:** Extended attributes (xattr) require a supporting filesystem (e.g., ext4, xfs, btrfs) mounted with `user_xattr` support. Standard Docker `overlayfs` may not support the `user.` namespace used by this library.
 
@@ -408,7 +412,7 @@ if (file != null) {
     file.read(1024 * 1024, (result, data) -> {
         if (result == 0) {
             trace('Read ${data.size} bytes into native memory.');
-            // data.toBytes() to move to Haxe, or use getPointer() for native work
+            // data.toBytes() to move to Haxe, or use data.address for native work
         }
         data.free(); // Manually free native memory
         file.close();
@@ -431,16 +435,16 @@ var buffer = new BipBuffer(1024 * 1024); // 1MB
 
 // Contiguous write reservation
 var res = buffer.reserve(4096);
-if (res.ptr != null) {
-    // res.ptr is a raw native pointer
-    // populate res.ptr via native FFI or C++
+if (res.address != 0) {
+    // res.address is the raw memory location
+    // populate via native FFI or C++
     buffer.commit(4096);
 }
 
 // Contiguous read access
 var info = buffer.getReadPtr();
-if (info.ptr != null) {
-    // Process info.len bytes from info.ptr
+if (info.address != 0) {
+    // Process info.len bytes from info.address
     buffer.decommit(info.len);
 }
 
@@ -494,6 +498,38 @@ if (stats != null) {
 
 // Manage permissions without octals
 FileDiagnostics.chmod("script.sh", OWNER_READ | OWNER_WRITE | OWNER_EXEC);
+```
+
+### Volume Metadata
+Retrieve detailed metadata about mounted drives and partitions.
+
+```haxe
+import digigun.sys.fs.Volume;
+
+var info = Volume.getInfo("/");
+if (info != null) {
+    trace('FS Type: ${info.fileSystem}'); // e.g., apfs, NTFS, ext4
+    trace('Total: ${info.totalSpace} bytes');
+    trace('Free: ${info.freeSpace} bytes');
+}
+```
+
+### Raw Network Sockets
+Perform low-level packet sniffing and injection. Requires Root/Admin privileges.
+
+```haxe
+import digigun.sys.network.RawSocket;
+import digigun.sys.io.NativeBuffer;
+
+var sniffer = RawSocket.create("en0"); // "lo0" for loopback
+if (sniffer != null) {
+    var buf = new NativeBuffer(65536);
+    var bytes = sniffer.readPacket(buf);
+    if (bytes > 0) {
+        trace('Captured packet of $bytes bytes');
+    }
+    sniffer.close();
+}
 ```
 
 ## Safety & Security Considerations
