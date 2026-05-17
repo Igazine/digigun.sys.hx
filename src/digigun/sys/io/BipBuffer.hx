@@ -52,6 +52,7 @@ class BipPointer {
         this.address = address;
         this.len = len;
     }
+    @:noCompletion
     public var ptr(get, never):RawPointer<cpp.Void>;
     private function get_ptr():RawPointer<cpp.Void> {
         return untyped __cpp__("(void*)(size_t){0}", address);

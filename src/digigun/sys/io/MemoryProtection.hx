@@ -36,14 +36,22 @@ private extern class Native {
  */
 class MemoryProtection {
     /**
-     * Changes the access protection for a region of memory.
-     * @param ptr Pointer to the start of the memory region.
+     * Changes the access protection for a region of memory by address.
+     * @param address Raw memory address.
      * @param length Size of the region in bytes.
      * @param flags Protection flags (bitmask of MemProt values).
      * @return True if successful.
      */
-    public static function protect(ptr:cpp.RawPointer<cpp.Void>, length:Int, flags:Int):Bool {
+    public static function protectAddress(address:haxe.Int64, length:Int, flags:Int):Bool {
+        var ptr:cpp.RawPointer<cpp.Void> = untyped __cpp__("(void*)(size_t){0}", address);
         return Native.protect(ptr, length, flags) == 0;
+    }
+
+    /**
+     * Changes the access protection for a NativeBuffer.
+     */
+    public static function protect(buffer:NativeBuffer, flags:Int):Bool {
+        return protectAddress(buffer.address, buffer.size, flags);
     }
 
     /**

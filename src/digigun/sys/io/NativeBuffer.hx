@@ -22,19 +22,41 @@ private extern class Native {
 class NativeBuffer {
     public var handle(default, null):NativeHandle;
     public var size(default, null):Int;
+    private var ownsHandle:Bool = true;
 
     public function new(size:Int) {
         this.size = size;
         this.handle = new NativeHandle(Native.alloc(size));
     }
 
+    /**
+     * Creates a NativeBuffer from an existing memory address.
+     * The resulting buffer does not own the memory and will not free it.
+     */
+    public static function fromAddress(address:haxe.Int64, size:Int):NativeBuffer {
+        var buf = Type.createEmptyInstance(NativeBuffer);
+        buf.size = size;
+        buf.handle = new NativeHandle(address);
+        buf.ownsHandle = false;
+        return buf;
+    }
+
     public function free():Void {
-        if (handle.isValid) {
+        if (handle.isValid && ownsHandle) {
             Native.free(handle.value);
             handle = NativeHandle.nullHandle();
         }
     }
 
+    /**
+     * Returns the raw memory address of this buffer.
+     */
+    public var address(get, never):haxe.Int64;
+    private inline function get_address():haxe.Int64 {
+        return untyped __cpp__("(long long)(size_t){0}", getPointer());
+    }
+
+    @:noCompletion
     public function getPointer():cpp.RawPointer<cpp.Void> {
         return handle.isValid ? Native.getPtr(handle.value) : null;
     }

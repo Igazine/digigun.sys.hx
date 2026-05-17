@@ -7,12 +7,35 @@ import digigun.sys.NativeHandle;
 import cpp.Finalizable;
 #end
 
+@:keep
+@:include("shm_native.h")
+private extern class Native {
+    @:native("shm_open_segment")
+    static function open_segment(name:cpp.ConstCharStar, size:Int, writable:Int):haxe.Int64;
+
+    @:native("shm_close_segment")
+    static function close_segment(handle:haxe.Int64):Void;
+
+    @:native("shm_read_segment")
+    static function read_segment(handle:haxe.Int64, offset:Int, buffer:cpp.RawPointer<cpp.Char>, length:Int):Int;
+
+    @:native("shm_write_segment")
+    static function write_segment(handle:haxe.Int64, offset:Int, buffer:cpp.RawConstPointer<cpp.Char>, length:Int):Int;
+
+    @:native("shm_unlink_segment")
+    static function unlink_segment(name:cpp.ConstCharStar):Void;
+
+    @:native("shm_get_address")
+    static function get_address(handle:haxe.Int64):haxe.Int64;
+}
+
 /**
  * Class for creating and accessing shared memory segments.
  */
 class SharedMemory #if cpp extends Finalizable #end {
     private var handle:NativeHandle;
     private var name:String;
+    private var size:Int;
 
     public function new() {
         #if cpp
@@ -27,11 +50,33 @@ class SharedMemory #if cpp extends Finalizable #end {
     public function open(name:String, size:Int, writable:Bool = true):Bool {
         #if cpp
         this.name = name;
+        this.size = size;
         this.handle = new NativeHandle(Native.open_segment(name, size, writable ? 1 : 0));
         return this.handle.isValid;
         #else
         return false;
         #end
+    }
+
+    /**
+     * Returns the raw memory address of the shared segment.
+     */
+    public var address(get, never):haxe.Int64;
+    private function get_address():haxe.Int64 {
+        #if cpp
+        return this.handle.isValid ? Native.get_address(this.handle.value) : 0;
+        #else
+        return 0;
+        #end
+    }
+
+    /**
+     * Returns a NativeBuffer view of the shared memory.
+     * Note: The buffer is a view; closing SharedMemory invalidates the buffer.
+     */
+    public function asBuffer():digigun.sys.io.NativeBuffer {
+        if (!this.handle.isValid) return null;
+        return digigun.sys.io.NativeBuffer.fromAddress(this.address, this.size);
     }
 
     /**

@@ -69,6 +69,16 @@ void fs_file_unlock(long long id) {
 #endif
 }
 
+struct ManagedMmap {
+#ifdef _WIN32
+    HANDLE hMap;
+#else
+    int fd;
+#endif
+    void* ptr;
+    int size;
+};
+
 // Global watcher state
 struct WatcherSession {
     std::string path;
@@ -290,56 +300,77 @@ long long fs_mmap_open(const char* path, int size, int writable) {
     if (hFile == INVALID_HANDLE_VALUE) return 0;
     HANDLE hMap = CreateFileMappingA(hFile, NULL, writable ? PAGE_READWRITE : PAGE_READONLY, 0, size, NULL);
     CloseHandle(hFile);
-    return (long long)(size_t)hMap;
+    if (!hMap) return 0;
+
+    void* ptr = MapViewOfFile(hMap, writable ? FILE_MAP_ALL_ACCESS : FILE_MAP_READ, 0, 0, size);
+    if (!ptr) { CloseHandle(hMap); return 0; }
+
+    ManagedMmap* m = (ManagedMmap*)malloc(sizeof(ManagedMmap));
+    m->hMap = hMap;
+    m->ptr = ptr;
+    m->size = size;
+    return (long long)(size_t)m;
 #else
     int fd = open(path, writable ? O_RDWR : O_RDONLY);
-    return (long long)(size_t)fd;
+    if (fd < 0) return 0;
+
+    void* ptr = mmap(NULL, size, (writable ? (PROT_READ | PROT_WRITE) : PROT_READ), MAP_SHARED, fd, 0);
+    if (ptr == MAP_FAILED) { close(fd); return 0; }
+
+    ManagedMmap* m = (ManagedMmap*)malloc(sizeof(ManagedMmap));
+    m->fd = fd;
+    m->ptr = ptr;
+    m->size = size;
+    return (long long)(size_t)m;
 #endif
 }
 
 void fs_mmap_close(long long id) {
+    if (!id) return;
+    ManagedMmap* m = (ManagedMmap*)(size_t)id;
 #ifdef _WIN32
-    CloseHandle((HANDLE)(size_t)id);
+    UnmapViewOfFile(m->ptr);
+    CloseHandle(m->hMap);
 #else
-    close((int)(size_t)id);
+    munmap(m->ptr, m->size);
+    close(m->fd);
 #endif
+    free(m);
 }
 
 int fs_mmap_read(long long id, int offset, char* buffer, int length) {
-#ifdef _WIN32
-    void* ptr = MapViewOfFile((HANDLE)(size_t)id, FILE_MAP_READ, 0, offset, length);
-    if (!ptr) return -1;
-    memcpy(buffer, ptr, length);
-    UnmapViewOfFile(ptr);
+    if (!id) return -1;
+    ManagedMmap* m = (ManagedMmap*)(size_t)id;
+    if (offset + length > m->size) length = m->size - offset;
+    if (length <= 0) return 0;
+    memcpy(buffer, (char*)m->ptr + offset, length);
     return length;
-#else
-    int fd = (int)(size_t)id;
-    void* ptr = mmap(NULL, length, PROT_READ, MAP_SHARED, fd, offset);
-    if (ptr == MAP_FAILED) return -1;
-    memcpy(buffer, ptr, length);
-    munmap(ptr, length);
-    return length;
-#endif
 }
 
 int fs_mmap_write(long long id, int offset, const char* buffer, int length) {
+    if (!id) return -1;
+    ManagedMmap* m = (ManagedMmap*)(size_t)id;
+    if (offset + length > m->size) length = m->size - offset;
+    if (length <= 0) return 0;
+    memcpy((char*)m->ptr + offset, buffer, length);
+    return length;
+}
+
+void fs_mmap_flush(long long id) {
+    if (!id) return;
+    ManagedMmap* m = (ManagedMmap*)(size_t)id;
 #ifdef _WIN32
-    void* ptr = MapViewOfFile((HANDLE)(size_t)id, FILE_MAP_WRITE, 0, offset, length);
-    if (!ptr) return -1;
-    memcpy(ptr, buffer, length);
-    UnmapViewOfFile(ptr);
-    return length;
+    FlushViewOfFile(m->ptr, 0);
 #else
-    int fd = (int)(size_t)id;
-    void* ptr = mmap(NULL, length, PROT_WRITE, MAP_SHARED, fd, offset);
-    if (ptr == MAP_FAILED) return -1;
-    memcpy(ptr, buffer, length);
-    munmap(ptr, length);
-    return length;
+    msync(m->ptr, m->size, MS_SYNC);
 #endif
 }
 
-void fs_mmap_flush(long long id) {}
+long long fs_mmap_get_address(long long id) {
+    if (!id) return 0;
+    ManagedMmap* m = (ManagedMmap*)(size_t)id;
+    return (long long)(size_t)m->ptr;
+}
 
 int fs_set_xattr(const char* path, const char* name, const unsigned char* value, int length) {
 #ifdef _WIN32

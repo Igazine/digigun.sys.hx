@@ -323,24 +323,23 @@ class Main {
         trace("--- Testing Futex / WaitOnAddress ---");
         // Use NativeBuffer (malloc) to ensure memory never moves and is correctly aligned
         var mem = new digigun.sys.io.NativeBuffer(4);
-        var ptr:cpp.RawPointer<Int> = cast mem.getPointer();
-        untyped __cpp__("*(int*){0} = 0", ptr);
+        untyped __cpp__("*(int*)(size_t){0} = 0", mem.address);
 
         trace("  Spawning waker thread...");
         sys.thread.Thread.create(() -> {
             Sys.sleep(0.5);
             trace("  [WAKER] Changing value to 42 and waking...");
-            untyped __cpp__("*(int*){0} = 42", ptr);
-            var woken = Futex.wake(ptr);
+            untyped __cpp__("*(int*)(size_t){0} = 42", mem.address);
+            var woken = Futex.wake(mem, 0);
             trace('  [WAKER] Wake call returned: $woken');
         });
 
         trace("  [MAIN] Waiting on futex (expected=0)...");
         var start = Time.stamp();
         // Blocks ONLY if value == 0
-        if (Futex.wait(ptr, 0)) {
+        if (Futex.wait(mem, 0, 0)) {
             var elapsed = Time.stamp() - start;
-            var finalVal:Int = untyped __cpp__("*(int*){0}", ptr);
+            var finalVal:Int = untyped __cpp__("*(int*)(size_t){0}", mem.address);
             trace('  [MAIN] Awoken! Elapsed: ${elapsed}s, Value: $finalVal');
             if (finalVal == 42 && elapsed >= 0.4) {
                 trace("  Futex synchronization: SUCCESS");
@@ -634,11 +633,10 @@ class Main {
 
         // Allocate a buffer
         var mem = new digigun.sys.io.NativeBuffer(pageSize);
-        var ptr = mem.getPointer();
 
         // 1. Set READ_WRITE (default usually)
         trace("  Applying READ_WRITE...");
-        if (MemoryProtection.protect(ptr, pageSize, READ_WRITE)) {
+        if (MemoryProtection.protect(mem, READ_WRITE)) {
             trace("  READ_WRITE applied: SUCCESS");
         } else {
             trace("  READ_WRITE applied: FAILED");
@@ -646,14 +644,14 @@ class Main {
 
         // 2. Set READ only
         trace("  Applying READ_ONLY...");
-        if (MemoryProtection.protect(ptr, pageSize, READ)) {
+        if (MemoryProtection.protect(mem, READ)) {
             trace("  READ_ONLY applied: SUCCESS");
         } else {
             trace("  READ_ONLY applied: FAILED");
         }
 
         // Re-enable WRITE so we can safely free or use later
-        MemoryProtection.protect(ptr, pageSize, READ_WRITE);
+        MemoryProtection.protect(mem, READ_WRITE);
         mem.free();
     }
 

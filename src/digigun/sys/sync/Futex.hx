@@ -19,31 +19,30 @@ private extern class Native {
  */
 class Futex {
     /**
-     * Blocks the current thread if the value at the given 32-bit pointer matches `expectedValue`.
-     * The thread will sleep until `wake()` or `wakeAll()` is called on the same pointer.
-     * @param ptr Raw pointer to a 32-bit integer.
+     * Blocks the current thread if the value at the given buffer location matches `expectedValue`.
+     * @param buffer The NativeBuffer containing the 32-bit integer.
+     * @param byteOffset Offset in bytes from the start of the buffer (must be 4-byte aligned).
      * @param expectedValue The value that must be present to trigger the wait.
      * @return True if the wait was successful (awoken or value already changed).
      */
-    public static function wait(ptr:cpp.RawPointer<Int>, expectedValue:Int):Bool {
+    public static function wait(buffer:digigun.sys.io.NativeBuffer, byteOffset:Int, expectedValue:Int):Bool {
+        var ptr:cpp.RawPointer<Int> = cast untyped __cpp__("(int*)((char*){0} + {1})", buffer.getPointer(), byteOffset);
         return Native.wait(ptr, expectedValue) == 0;
     }
 
     /**
-     * Wakes a single thread waiting on the given pointer.
-     * @param ptr Raw pointer to a 32-bit integer.
-     * @return Number of threads woken (usually 1 or 0).
+     * Wakes a single thread waiting on the given buffer location.
      */
-    public static function wake(ptr:cpp.RawPointer<Int>):Int {
+    public static function wake(buffer:digigun.sys.io.NativeBuffer, byteOffset:Int):Int {
+        var ptr:cpp.RawPointer<Int> = cast untyped __cpp__("(int*)((char*){0} + {1})", buffer.getPointer(), byteOffset);
         return Native.wake(ptr);
     }
 
     /**
-     * Wakes all threads waiting on the given pointer.
-     * @param ptr Raw pointer to a 32-bit integer.
-     * @return Number of threads woken.
+     * Wakes all threads waiting on the given buffer location.
      */
-    public static function wakeAll(ptr:cpp.RawPointer<Int>):Int {
+    public static function wakeAll(buffer:digigun.sys.io.NativeBuffer, byteOffset:Int):Int {
+        var ptr:cpp.RawPointer<Int> = cast untyped __cpp__("(int*)((char*){0} + {1})", buffer.getPointer(), byteOffset);
         return Native.wakeAll(ptr);
     }
 }

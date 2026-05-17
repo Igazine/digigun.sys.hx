@@ -3,6 +3,27 @@ package digigun.sys.fs;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
 import digigun.sys.NativeHandle;
+@:keep
+@:include("fs_native.h")
+private extern class Native {
+    @:native("fs_mmap_open")
+    static function mmap_open(path:cpp.ConstCharStar, size:Int, writable:Int):haxe.Int64;
+
+    @:native("fs_mmap_close")
+    static function mmap_close(id:haxe.Int64):Void;
+
+    @:native("fs_mmap_read")
+    static function mmap_read(id:haxe.Int64, offset:Int, buffer:cpp.RawPointer<cpp.Char>, length:Int):Int;
+
+    @:native("fs_mmap_write")
+    static function mmap_write(id:haxe.Int64, offset:Int, buffer:cpp.RawConstPointer<cpp.Char>, length:Int):Int;
+
+    @:native("fs_mmap_flush")
+    static function mmap_flush(id:haxe.Int64):Void;
+
+    @:native("fs_mmap_get_address")
+    static function mmap_get_address(id:haxe.Int64):haxe.Int64;
+}
 
 /**
  * Provides memory mapping of files for high-speed I/O.
@@ -34,7 +55,28 @@ class MemoryMap {
     }
 
     /**
+     * Returns the raw memory address of the mapping.
+     */
+    public var address(get, never):haxe.Int64;
+    private function get_address():haxe.Int64 {
+        #if cpp
+        return this.handle.isValid ? Native.mmap_get_address(this.handle.value) : 0;
+        #else
+        return 0;
+        #end
+    }
+
+    /**
+     * Returns a NativeBuffer view of the memory map.
+     */
+    public function asBuffer():digigun.sys.io.NativeBuffer {
+        if (!this.handle.isValid) return null;
+        return digigun.sys.io.NativeBuffer.fromAddress(this.address, this.size);
+    }
+
+    /**
      * Reads bytes from the memory map.
+...
      * @param offset Start offset within the mapping.
      * @param length Number of bytes to read.
      * @return Bytes instance containing the data.

@@ -65,6 +65,12 @@ int shm_write_segment(long long handle, int offset, const char* buffer, int leng
 void shm_unlink_segment(const char* name) {
 }
 
+long long shm_get_address(long long handle) {
+    if (!handle) return 0;
+    ManagedShm* m = (ManagedShm*)(size_t)handle;
+    return (long long)(size_t)m->ptr;
+}
+
 } // extern "C"
 
 #else
@@ -139,6 +145,12 @@ void shm_unlink_segment(const char* name) {
     std::string posix_name = name;
     if (posix_name[0] != '/') posix_name = "/" + posix_name;
     shm_unlink(posix_name.c_str());
+}
+
+long long shm_get_address(long long handle) {
+    if (!handle) return 0;
+    ManagedShm* m = (ManagedShm*)(size_t)handle;
+    return (long long)(size_t)m->ptr;
 }
 
 } // extern "C"

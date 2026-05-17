@@ -26,6 +26,7 @@ extern "C" {
     DIGIGUN_API int fs_mmap_read(long long id, int offset, char* buffer, int length);
     DIGIGUN_API int fs_mmap_write(long long id, int offset, const char* buffer, int length);
     DIGIGUN_API void fs_mmap_flush(long long id);
+    DIGIGUN_API long long fs_mmap_get_address(long long id);
 
     /**
      * Extended Attributes (xattr / ADS)

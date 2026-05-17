@@ -4,9 +4,9 @@
         "license": "MIT",
         "tags": ["sys", "cpp", "fifo", "unix", "socket", "network"],
         "description": "System extension library for Haxe (CPP target)",
-        "version": "0.5.6",
+        "version": "0.5.7",
         "classPath": "src",
         "contributors": ["igazine"],
-        "releasenote": "Implemented Native Serial Port / UART communication (v0.5.6).",
+        "releasenote": "Modernized Public API: Removed 'cpp.*' types in favor of NativeBuffer and Int64 (v0.5.7).",
         "dependencies": {}
 }

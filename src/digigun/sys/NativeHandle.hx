@@ -34,13 +34,15 @@ class NativeHandle {
     /**
      * Explicit conversion to a raw pointer.
      */
+    @:noCompletion
     public inline function toVoidPtr():cpp.RawPointer<cpp.Void> {
         return untyped __cpp__("(void*)(size_t){0}", value);
     }
 
     /**
-     * Explicit creation from a raw pointer.
+     * Explicit creation from a pointer.
      */
+    @:noCompletion
     public static function fromVoidPtr(ptr:cpp.RawPointer<cpp.Void>):NativeHandle {
         return new NativeHandle(untyped __cpp__("(long long)(size_t){0}", ptr));
     }
