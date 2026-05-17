@@ -399,4 +399,40 @@ int fs_remove_xattr(const char* path, const char* name) {
 #endif
 }
 
+int fs_symlink_create(const char* target, const char* linkpath) {
+#ifdef _WIN32
+    DWORD attr = GetFileAttributesA(target);
+    DWORD flags = 0;
+    if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY)) {
+        flags |= 0x1; // SYMBOLIC_LINK_FLAG_DIRECTORY
+    }
+    // 0x2 = SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE
+    if (CreateSymbolicLinkA(linkpath, target, flags | 0x2)) return 0;
+    return (int)GetLastError();
+#else
+    if (symlink(target, linkpath) == 0) return 0;
+    return errno;
+#endif
+}
+
+int fs_symlink_read(const char* path, char* buffer, int length) {
+#ifdef _WIN32
+    HANDLE hFile = CreateFileA(path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) return -1;
+    DWORD res = GetFinalPathNameByHandleA(hFile, buffer, length, 0);
+    CloseHandle(hFile);
+    if (res == 0 || res >= (DWORD)length) return -1;
+    if (res > 4 && strncmp(buffer, "\\\\?\\", 4) == 0) {
+        memmove(buffer, buffer + 4, res - 3);
+        return (int)(res - 4);
+    }
+    return (int)res;
+#else
+    ssize_t res = readlink(path, buffer, length);
+    if (res < 0) return -1;
+    if (res < length) buffer[res] = '\0';
+    return (int)res;
+#endif
+}
+
 } // extern "C"

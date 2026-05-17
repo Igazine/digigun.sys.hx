@@ -34,6 +34,12 @@ extern "C" {
     DIGIGUN_API int fs_get_xattr(const char* path, const char* name, unsigned char* buffer, int length);
     DIGIGUN_API int fs_list_xattrs(const char* path, char* buffer, int length);
     DIGIGUN_API int fs_remove_xattr(const char* path, const char* name);
+
+    /**
+     * Symbolic Links
+     */
+    DIGIGUN_API int fs_symlink_create(const char* target, const char* linkpath);
+    DIGIGUN_API int fs_symlink_read(const char* path, char* buffer, int length);
 }
 
 #endif // FS_NATIVE_H

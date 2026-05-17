@@ -35,6 +35,7 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - **Async File I/O**: Non-blocking file operations with native buffer management to minimize GC overhead.
 - **Advanced Native Buffers**: Optimized `RingBuffer`, `BipBuffer` (contiguous), and `ChunkedBuffer` (linked) for high-speed streaming.
 - **Resilient Diagnostics**: Native crash interception for Segfaults and Access Violations with minidump generation.
+- **Symlink Management**: Cross-platform symbolic link creation and target resolution.
 
 ## Status Legend
 
@@ -152,6 +153,10 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] **Native Crash Handler** - Interception of SIGSEGV, SIGABRT, and Access Violations ✅
 - [x] **Stack Trace Capture** - Text-based backtrace generation for all platforms ✅
 - [x] **Minidump Generation** - Standard `.dmp` files for Windows ARM64/x64 ✅
+
+### Symlink Management (`digigun.sys.fs`) ✅
+- [x] **Cross-platform Creation** - `symlink` (POSIX) and `CreateSymbolicLink` (Windows) ✅
+- [x] **Target Resolution** - `readlink` (POSIX) and `GetFinalPathNameByHandle` (Windows) ✅
 
 ### Future / Research ⏳
 - [ ] `io_uring` - Kernel-level completion engine for Linux ⏳
@@ -432,6 +437,22 @@ RtControl.setupCrashHandler("path/to/crash_report.txt");
 
 // If a native segfault or access violation occurs, a report is generated
 // containing the C++/Haxe stack trace.
+```
+
+### Symlink Management
+Create and read symbolic links across platforms.
+
+```haxe
+import digigun.sys.fs.Symlink;
+
+// Create a symlink
+if (Symlink.create("target_file.txt", "my_link.txt")) {
+    trace("Link created successfully");
+}
+
+// Read a symlink's target
+var target = Symlink.read("my_link.txt");
+trace('Points to: $target');
 ```
 
 ## Safety & Security Considerations

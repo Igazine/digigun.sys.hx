@@ -11,6 +11,7 @@ import digigun.sys.fs.Watcher;
 import digigun.sys.fs.FileLock;
 import digigun.sys.fs.MemoryMap;
 import digigun.sys.fs.ExtendedAttributes;
+import digigun.sys.fs.Symlink;
 import digigun.sys.sync.NamedSemaphore;
 import digigun.sys.proc.ProcControl;
 import digigun.sys.time.Time;
@@ -97,6 +98,7 @@ class Main {
         testFileLock();
         testMemoryMap();
         testWatcher();
+        testSymlink();
         testExtendedAttributes();
         testDirectIO();
         testFifo();
@@ -321,6 +323,38 @@ class Main {
         if (!FileSystem.exists(watchDir)) FileSystem.createDirectory(watchDir);
         var success = Watcher.watch(watchDir, (event) -> {}, true);
         if (success) Watcher.stopAll();
+    }
+
+    static function testSymlink() {
+        trace("--- Testing Symbolic Links ---");
+        var targetPath = getTestPath("symlink_target.txt");
+        var linkPath = getTestPath("symlink_link.txt");
+        
+        try {
+            if (sys.FileSystem.exists(targetPath)) sys.FileSystem.deleteFile(targetPath);
+            if (sys.FileSystem.exists(linkPath)) sys.FileSystem.deleteFile(linkPath);
+        } catch(e:Dynamic) {}
+
+        sys.io.File.saveContent(targetPath, "Symlink target content");
+        
+        if (Symlink.create(targetPath, linkPath)) {
+            trace("  Symlink created.");
+            var readPath = Symlink.read(linkPath);
+            trace('  Read target path: $readPath');
+            
+            if (readPath != null && (readPath == targetPath || readPath.indexOf("symlink_target.txt") != -1)) {
+                trace("  Symlink resolution: SUCCESS");
+            } else {
+                trace('  Symlink resolution: FAILED (Expected $targetPath, got $readPath)');
+            }
+        } else {
+            trace("  Symlink creation: FAILED (Check permissions/Developer Mode)");
+        }
+
+        try {
+            if (sys.FileSystem.exists(linkPath)) sys.FileSystem.deleteFile(linkPath);
+            if (sys.FileSystem.exists(targetPath)) sys.FileSystem.deleteFile(targetPath);
+        } catch(e:Dynamic) {}
     }
 
     static function testExtendedAttributes() {

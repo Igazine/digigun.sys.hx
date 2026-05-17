@@ -4,9 +4,9 @@
         "license": "MIT",
         "tags": ["sys", "cpp", "fifo", "unix", "socket", "network"],
         "description": "System extension library for Haxe (CPP target)",
-        "version": "0.4.0",
+        "version": "0.5.1",
         "classPath": "src",
         "contributors": ["igazine"],
-        "releasenote": "Implemented Phase 4: Async File I/O and Native Buffer management (malloc-based) with cross-platform parity.",
+        "releasenote": "Added cross-platform Symbolic Link management and native crash handling (v0.5.0/v0.5.1).",
         "dependencies": {}
 }
