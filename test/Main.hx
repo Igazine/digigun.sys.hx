@@ -30,6 +30,7 @@ import digigun.sys.io.NativeLoop;
 import digigun.sys.io.NativeBuffer;
 import digigun.sys.io.AsyncFile;
 import digigun.sys.io.MemoryProtection;
+import digigun.sys.io.SerialPort;
 import sys.FileSystem;
 import cpp.Callable;
 
@@ -121,6 +122,7 @@ class Main {
         testAsyncFile();
         testAdvancedBuffers();
         testMemoryProtection();
+        testSerialPort();
         testRawSocket();
         
         var args = Sys.args();
@@ -653,6 +655,23 @@ class Main {
         // Re-enable WRITE so we can safely free or use later
         MemoryProtection.protect(ptr, pageSize, READ_WRITE);
         mem.free();
+    }
+
+    static function testSerialPort() {
+        trace("--- Testing Serial Port / UART ---");
+        var portName = switch (Sys.systemName()) {
+            case "Windows": "COM99";
+            default: "/dev/tty.digigun_dummy";
+        };
+
+        trace('  Attempting to open non-existent port: $portName');
+        var serial = SerialPort.open(portName, 115200);
+        if (serial != null) {
+            trace("  Port opened (Unexpected!).");
+            serial.close();
+        } else {
+            trace("  Port opening failed as expected. Structural check: SUCCESS");
+        }
     }
 
     static function testRawSocket() {

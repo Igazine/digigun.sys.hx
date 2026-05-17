@@ -33,6 +33,14 @@ extern "C" {
      */
     DIGIGUN_API int io_mem_protect(void* addr, size_t len, int flags);
     DIGIGUN_API int io_mem_pagesize();
+
+    /**
+     * Serial Port / UART
+     */
+    DIGIGUN_API long long io_serial_open(const char* port_name, int baud_rate, int data_bits, int parity, int stop_bits);
+    DIGIGUN_API int       io_serial_read(long long handle, void* buffer, int length);
+    DIGIGUN_API int       io_serial_write(long long handle, const void* buffer, int length);
+    DIGIGUN_API void      io_serial_close(long long handle);
 }
 
 #endif // IO_NATIVE_H

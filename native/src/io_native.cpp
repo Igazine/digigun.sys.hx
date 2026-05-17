@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/mman.h>
+#include <termios.h>
+#include <stdint.h>
 #ifdef __APPLE__
 #include <sys/uio.h>
 #else
@@ -145,6 +147,109 @@ int io_mem_pagesize() {
     return (int)si.dwPageSize;
 #else
     return (int)sysconf(_SC_PAGESIZE);
+#endif
+}
+
+long long io_serial_open(const char* port_name, int baud_rate, int data_bits, int parity, int stop_bits) {
+#ifdef _WIN32
+    char full_name[256];
+    if (strncmp(port_name, "COM", 3) == 0 && strlen(port_name) > 4) {
+        snprintf(full_name, sizeof(full_name), "\\\\.\\%s", port_name);
+    } else {
+        strncpy(full_name, port_name, sizeof(full_name));
+    }
+
+    HANDLE h = CreateFileA(full_name, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    if (h == INVALID_HANDLE_VALUE) return 0;
+
+    DCB dcbSerialParams = {0};
+    dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
+    if (!GetCommState(h, &dcbSerialParams)) { CloseHandle(h); return 0; }
+
+    dcbSerialParams.BaudRate = baud_rate;
+    dcbSerialParams.ByteSize = data_bits;
+    dcbSerialParams.StopBits = (stop_bits == 1) ? ONESTOPBIT : TWOSTOPBITS;
+    dcbSerialParams.Parity = (parity == 0) ? NOPARITY : (parity == 1 ? ODDPARITY : EVENPARITY);
+
+    if (!SetCommState(h, &dcbSerialParams)) { CloseHandle(h); return 0; }
+
+    COMMTIMEOUTS timeouts = {0};
+    timeouts.ReadIntervalTimeout = MAXDWORD; // Non-blocking style
+    timeouts.ReadTotalTimeoutConstant = 0;
+    timeouts.ReadTotalTimeoutMultiplier = 0;
+    timeouts.WriteTotalTimeoutConstant = 50;
+    timeouts.WriteTotalTimeoutMultiplier = 10;
+    SetCommTimeouts(h, &timeouts);
+
+    return (long long)(size_t)h;
+#else
+    int fd = open(port_name, O_RDWR | O_NOCTTY | O_NDELAY);
+    if (fd < 0) return 0;
+
+    struct termios tty;
+    if (tcgetattr(fd, &tty) != 0) { close(fd); return 0; }
+
+    speed_t speed = B9600;
+    switch(baud_rate) {
+        case 9600: speed = B9600; break;
+        case 19200: speed = B19200; break;
+        case 38400: speed = B38400; break;
+        case 57600: speed = B57600; break;
+        case 115200: speed = B115200; break;
+        default: speed = B9600; break;
+    }
+    cfsetospeed(&tty, speed);
+    cfsetispeed(&tty, speed);
+
+    tty.c_cflag = (tty.c_cflag & ~CSIZE) | (data_bits == 8 ? CS8 : CS7);
+    tty.c_iflag &= ~IGNBRK;
+    tty.c_lflag = 0;
+    tty.c_oflag = 0;
+    tty.c_cc[VMIN]  = 0;
+    tty.c_cc[VTIME] = 5;
+
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY);
+    tty.c_cflag |= (CLOCAL | CREAD);
+
+    // Parity
+    if (parity == 0) tty.c_cflag &= ~(PARENB | PARODD);
+    else if (parity == 1) { tty.c_cflag |= PARENB; tty.c_cflag |= PARODD; }
+    else if (parity == 2) { tty.c_cflag |= PARENB; tty.c_cflag &= ~PARODD; }
+
+    // Stop bits
+    if (stop_bits == 1) tty.c_cflag &= ~CSTOPB;
+    else tty.c_cflag |= CSTOPB;
+
+    if (tcsetattr(fd, TCSANOW, &tty) != 0) { close(fd); return 0; }
+    return (long long)(size_t)fd;
+#endif
+}
+
+int io_serial_read(long long handle, void* buffer, int length) {
+#ifdef _WIN32
+    DWORD bytesRead;
+    if (ReadFile((HANDLE)(size_t)handle, buffer, (DWORD)length, &bytesRead, NULL)) return (int)bytesRead;
+    return -1;
+#else
+    return (int)read((int)handle, buffer, length);
+#endif
+}
+
+int io_serial_write(long long handle, const void* buffer, int length) {
+#ifdef _WIN32
+    DWORD bytesWritten;
+    if (WriteFile((HANDLE)(size_t)handle, buffer, (DWORD)length, &bytesWritten, NULL)) return (int)bytesWritten;
+    return -1;
+#else
+    return (int)write((int)handle, buffer, length);
+#endif
+}
+
+void io_serial_close(long long handle) {
+#ifdef _WIN32
+    CloseHandle((HANDLE)(size_t)handle);
+#else
+    close((int)handle);
 #endif
 }
 

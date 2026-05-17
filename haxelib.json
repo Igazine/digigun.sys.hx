@@ -4,9 +4,9 @@
         "license": "MIT",
         "tags": ["sys", "cpp", "fifo", "unix", "socket", "network"],
         "description": "System extension library for Haxe (CPP target)",
-        "version": "0.5.5",
+        "version": "0.5.6",
         "classPath": "src",
         "contributors": ["igazine"],
-        "releasenote": "Implemented Direct Memory Protection (mprotect / VirtualProtect) (v0.5.5).",
+        "releasenote": "Implemented Native Serial Port / UART communication (v0.5.6).",
         "dependencies": {}
 }
