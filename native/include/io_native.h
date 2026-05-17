@@ -27,6 +27,12 @@ extern "C" {
     DIGIGUN_API long long buffer_alloc(int size);
     DIGIGUN_API void buffer_free(long long handle);
     DIGIGUN_API void* buffer_get_ptr(long long handle);
+
+    /**
+     * Memory Protection
+     */
+    DIGIGUN_API int io_mem_protect(void* addr, size_t len, int flags);
+    DIGIGUN_API int io_mem_pagesize();
 }
 
 #endif // IO_NATIVE_H

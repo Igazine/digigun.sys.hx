@@ -10,6 +10,7 @@
 #else
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/mman.h>
 #ifdef __APPLE__
 #include <sys/uio.h>
 #else
@@ -100,6 +101,51 @@ void buffer_free(long long handle) {
 
 void* buffer_get_ptr(long long handle) {
     return (void*)(size_t)handle;
+}
+
+int io_mem_protect(void* addr, size_t len, int flags) {
+#ifdef _WIN32
+    DWORD win_prot = 0;
+    // flags: READ=1, WRITE=2, EXEC=4
+    if (flags & 4) { // EXEC
+        if (flags & 2) win_prot = PAGE_EXECUTE_READWRITE;
+        else if (flags & 1) win_prot = PAGE_EXECUTE_READ;
+        else win_prot = PAGE_EXECUTE;
+    } else {
+        if (flags & 2) win_prot = PAGE_READWRITE;
+        else if (flags & 1) win_prot = PAGE_READONLY;
+        else win_prot = PAGE_NOACCESS;
+    }
+
+    DWORD old;
+    if (VirtualProtect(addr, len, win_prot, &old)) return 0;
+    return -1;
+#else
+#include <stdint.h>
+    int posix_prot = PROT_NONE;
+    if (flags & 1) posix_prot |= PROT_READ;
+    if (flags & 2) posix_prot |= PROT_WRITE;
+    if (flags & 4) posix_prot |= PROT_EXEC;
+
+    // Align to page boundary for mprotect
+    size_t page_size = (size_t)sysconf(_SC_PAGESIZE);
+    uintptr_t uaddr = (uintptr_t)addr;
+    uintptr_t aligned_addr = uaddr & ~(page_size - 1);
+    size_t aligned_len = len + (uaddr - aligned_addr);
+
+    if (mprotect((void*)aligned_addr, aligned_len, posix_prot) == 0) return 0;
+    return -1;
+#endif
+}
+
+int io_mem_pagesize() {
+#ifdef _WIN32
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    return (int)si.dwPageSize;
+#else
+    return (int)sysconf(_SC_PAGESIZE);
+#endif
 }
 
 } // extern "C"

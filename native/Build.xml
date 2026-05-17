@@ -43,6 +43,7 @@
         <lib name="netapi32.lib" if="windows"/>
         <lib name="mswsock.lib" if="windows"/>
         <lib name="dbghelp.lib" if="windows"/>
+        <lib name="Synchronization.lib" if="windows"/>
         <lib name="-lrt" if="linux"/>
         <lib name="-ldl" if="linux"/>
         <linkerflag value="-framework" if="macos"/>

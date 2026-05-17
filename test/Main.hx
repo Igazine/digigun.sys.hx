@@ -15,6 +15,7 @@ import digigun.sys.fs.ExtendedAttributes;
 import digigun.sys.fs.Symlink;
 import digigun.sys.fs.FileDiagnostics;
 import digigun.sys.sync.NamedSemaphore;
+import digigun.sys.sync.Futex;
 import digigun.sys.proc.ProcControl;
 import digigun.sys.time.Time;
 import digigun.sys.console.Console;
@@ -28,6 +29,7 @@ import digigun.sys.dl.FFI;
 import digigun.sys.io.NativeLoop;
 import digigun.sys.io.NativeBuffer;
 import digigun.sys.io.AsyncFile;
+import digigun.sys.io.MemoryProtection;
 import sys.FileSystem;
 import cpp.Callable;
 
@@ -111,12 +113,14 @@ class Main {
         testSelector();
         testSharedMemory();
         testNamedSemaphore();
+        testFutex();
         testService();
         testDl();
         testFfi();
         testNativeLoop();
         testAsyncFile();
         testAdvancedBuffers();
+        testMemoryProtection();
         testRawSocket();
         
         var args = Sys.args();
@@ -311,6 +315,40 @@ class Main {
             sem.close();
             sem.unlink();
         }
+    }
+
+    static function testFutex() {
+        trace("--- Testing Futex / WaitOnAddress ---");
+        // Use NativeBuffer (malloc) to ensure memory never moves and is correctly aligned
+        var mem = new digigun.sys.io.NativeBuffer(4);
+        var ptr:cpp.RawPointer<Int> = cast mem.getPointer();
+        untyped __cpp__("*(int*){0} = 0", ptr);
+
+        trace("  Spawning waker thread...");
+        sys.thread.Thread.create(() -> {
+            Sys.sleep(0.5);
+            trace("  [WAKER] Changing value to 42 and waking...");
+            untyped __cpp__("*(int*){0} = 42", ptr);
+            var woken = Futex.wake(ptr);
+            trace('  [WAKER] Wake call returned: $woken');
+        });
+
+        trace("  [MAIN] Waiting on futex (expected=0)...");
+        var start = Time.stamp();
+        // Blocks ONLY if value == 0
+        if (Futex.wait(ptr, 0)) {
+            var elapsed = Time.stamp() - start;
+            var finalVal:Int = untyped __cpp__("*(int*){0}", ptr);
+            trace('  [MAIN] Awoken! Elapsed: ${elapsed}s, Value: $finalVal');
+            if (finalVal == 42 && elapsed >= 0.4) {
+                trace("  Futex synchronization: SUCCESS");
+            } else {
+                trace("  Futex synchronization: FAILED (Early wake or wrong value)");
+            }
+        } else {
+            trace("  Futex wait: FAILED");
+        }
+        mem.free();
     }
 
     static function testFileLock() {
@@ -585,6 +623,36 @@ class Main {
             }
             loop.close();
         }
+    }
+
+    static function testMemoryProtection() {
+        trace("--- Testing Direct Memory Protection (mprotect) ---");
+        var pageSize = MemoryProtection.getPageSize();
+        trace('  System Page Size: $pageSize bytes');
+
+        // Allocate a buffer
+        var mem = new digigun.sys.io.NativeBuffer(pageSize);
+        var ptr = mem.getPointer();
+
+        // 1. Set READ_WRITE (default usually)
+        trace("  Applying READ_WRITE...");
+        if (MemoryProtection.protect(ptr, pageSize, READ_WRITE)) {
+            trace("  READ_WRITE applied: SUCCESS");
+        } else {
+            trace("  READ_WRITE applied: FAILED");
+        }
+
+        // 2. Set READ only
+        trace("  Applying READ_ONLY...");
+        if (MemoryProtection.protect(ptr, pageSize, READ)) {
+            trace("  READ_ONLY applied: SUCCESS");
+        } else {
+            trace("  READ_ONLY applied: FAILED");
+        }
+
+        // Re-enable WRITE so we can safely free or use later
+        MemoryProtection.protect(ptr, pageSize, READ_WRITE);
+        mem.free();
     }
 
     static function testRawSocket() {
