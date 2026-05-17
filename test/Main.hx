@@ -153,12 +153,11 @@ class Main {
         
         // Test contiguous access
         var readInfo:digigun.sys.io.BipBuffer.BipPointer = bb.getReadPtr();
-        if (readInfo.ptr != null && readInfo.len >= data2.length) {
+        if (readInfo.address != 0 && readInfo.len >= data2.length) {
             var read2 = haxe.io.Bytes.alloc(data2.length);
-            // Copy from native pointer to verify
+            // Copy from native address to verify
             var dst:cpp.RawPointer<cpp.Void> = cast untyped __cpp__("(void*)&{0}->b[0]", read2);
-            var src:cpp.RawPointer<cpp.Void> = readInfo.ptr;
-            untyped __cpp__("memcpy({0}, {1}, {2})", dst, src, data2.length);
+            untyped __cpp__("memcpy({0}, (void*)(size_t){1}, {2})", dst, readInfo.address, data2.length);
             if (read2.toString() == data2.toString()) trace("  BipBuffer Contiguous Read: SUCCESS");
         }
         bb.destroy();

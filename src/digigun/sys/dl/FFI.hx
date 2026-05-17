@@ -56,7 +56,7 @@ class FFI {
                         case "Bool": macro return _bytes.get($v{fieldOffset}) != 0;
                         case "String": 
                             macro {
-                                var ptr:cpp.ConstCharStar = untyped __cpp__("*(const char**)((char*){0} + {1})", getPointer(), $v{fieldOffset});
+                                var ptr:cpp.ConstCharStar = untyped __cpp__("*(const char**)((char*){0} + {1})", _getPointer(), $v{fieldOffset});
                                 return (ptr == null) ? null : ptr.toString();
                             };
                         default: macro return null;
@@ -68,7 +68,7 @@ class FFI {
                         case "Bool": macro { _bytes.set($v{fieldOffset}, value ? 1 : 0); return value; };
                         case "String":
                             macro {
-                                untyped __cpp__("*(const char**)((char*){0} + {1}) = {2}", getPointer(), $v{fieldOffset}, (cast value : cpp.ConstCharStar));
+                                untyped __cpp__("*(const char**)((char*){0} + {1}) = {2}", _getPointer(), $v{fieldOffset}, (cast value : cpp.ConstCharStar));
                                 return value;
                             };
                         default: macro return value;
@@ -135,7 +135,26 @@ class FFI {
         });
 
         newFields.push({
-            name: "getPointer",
+            name: "address",
+            access: [APublic],
+            kind: FProp("get", "never", macro : haxe.Int64),
+            pos: Context.currentPos()
+        });
+
+        newFields.push({
+            name: "get_address",
+            access: [APrivate],
+            kind: FFun({
+                args: [],
+                ret: macro : haxe.Int64,
+                expr: macro return untyped __cpp__("(long long)(size_t){0}", _getPointer())
+            }),
+            pos: Context.currentPos()
+        });
+
+        newFields.push({
+            name: "_getPointer",
+            meta: [{name: ":noCompletion", pos: Context.currentPos()}],
             access: [APublic],
             kind: FFun({
                 args: [],
@@ -204,7 +223,7 @@ class FFI {
                                     callArgs.push(macro $i{argName});
                                     cppArgTypes.push("double");
                                 case TInst(t, _) if (t.get().meta.has(":ffi_struct")):
-                                    callArgs.push(macro $i{argName}.getPointer());
+                                    callArgs.push(macro $i{argName}._getPointer());
                                     cppArgTypes.push("void*");
                                 default:
                                     callArgs.push(macro $i{argName});

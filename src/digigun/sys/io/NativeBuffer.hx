@@ -53,11 +53,11 @@ class NativeBuffer {
      */
     public var address(get, never):haxe.Int64;
     private inline function get_address():haxe.Int64 {
-        return untyped __cpp__("(long long)(size_t){0}", getPointer());
+        return untyped __cpp__("(long long)(size_t){0}", _getPointer());
     }
 
     @:noCompletion
-    public function getPointer():cpp.RawPointer<cpp.Void> {
+    public function _getPointer():cpp.RawPointer<cpp.Void> {
         return handle.isValid ? Native.getPtr(handle.value) : null;
     }
 
@@ -68,7 +68,7 @@ class NativeBuffer {
         if (!handle.isValid) return null;
         var bytes = Bytes.alloc(size);
         var dst:cpp.RawPointer<cpp.Void> = cast untyped __cpp__("(void*)&{0}->b[0]", bytes);
-        untyped __cpp__("memcpy({0}, {1}, {2})", dst, getPointer(), size);
+        untyped __cpp__("memcpy({0}, {1}, {2})", dst, _getPointer(), size);
         return bytes;
     }
 
@@ -81,6 +81,6 @@ class NativeBuffer {
         if (length > size) length = size;
         
         var src:cpp.RawPointer<cpp.Void> = cast untyped __cpp__("(void*)&{0}->b[{1}]", bytes, offset);
-        untyped __cpp__("memcpy({0}, {1}, {2})", getPointer(), src, length);
+        untyped __cpp__("memcpy({0}, {1}, {2})", _getPointer(), src, length);
     }
 }

@@ -74,7 +74,7 @@ class NativeLoop {
         var id = _nextId++;
         _requests.set(id, callback);
         
-        var res = Native.submit(handle.value, fd.value, (op : Int), buffer.getPointer(), buffer.size, _nativeCallback, untyped __cpp__("(void*)(size_t){0}", id));
+        var res = Native.submit(handle.value, fd.value, (op : Int), buffer._getPointer(), buffer.size, _nativeCallback, untyped __cpp__("(void*)(size_t){0}", id));
         
         if (res < 0) {
             _requests.remove(id);

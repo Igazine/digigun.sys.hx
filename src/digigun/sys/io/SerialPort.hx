@@ -62,7 +62,7 @@ class SerialPort {
      */
     public function read(buffer:NativeBuffer):Int {
         if (!handle.isValid) return -1;
-        return Native.read(handle.value, buffer.getPointer(), buffer.size);
+        return Native.read(handle.value, buffer._getPointer(), buffer.size);
     }
 
     /**
@@ -74,7 +74,7 @@ class SerialPort {
     public function write(buffer:NativeBuffer, length:Int = -1):Int {
         if (!handle.isValid) return -1;
         if (length < 0) length = buffer.size;
-        return Native.write(handle.value, buffer.getPointer(), length);
+        return Native.write(handle.value, buffer._getPointer(), length);
     }
 
     /**

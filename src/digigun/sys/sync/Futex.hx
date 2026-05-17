@@ -26,7 +26,7 @@ class Futex {
      * @return True if the wait was successful (awoken or value already changed).
      */
     public static function wait(buffer:digigun.sys.io.NativeBuffer, byteOffset:Int, expectedValue:Int):Bool {
-        var ptr:cpp.RawPointer<Int> = cast untyped __cpp__("(int*)((char*){0} + {1})", buffer.getPointer(), byteOffset);
+        var ptr:cpp.RawPointer<Int> = cast untyped __cpp__("(int*)((char*){0} + {1})", buffer._getPointer(), byteOffset);
         return Native.wait(ptr, expectedValue) == 0;
     }
 
@@ -34,7 +34,7 @@ class Futex {
      * Wakes a single thread waiting on the given buffer location.
      */
     public static function wake(buffer:digigun.sys.io.NativeBuffer, byteOffset:Int):Int {
-        var ptr:cpp.RawPointer<Int> = cast untyped __cpp__("(int*)((char*){0} + {1})", buffer.getPointer(), byteOffset);
+        var ptr:cpp.RawPointer<Int> = cast untyped __cpp__("(int*)((char*){0} + {1})", buffer._getPointer(), byteOffset);
         return Native.wake(ptr);
     }
 
@@ -42,7 +42,7 @@ class Futex {
      * Wakes all threads waiting on the given buffer location.
      */
     public static function wakeAll(buffer:digigun.sys.io.NativeBuffer, byteOffset:Int):Int {
-        var ptr:cpp.RawPointer<Int> = cast untyped __cpp__("(int*)((char*){0} + {1})", buffer.getPointer(), byteOffset);
+        var ptr:cpp.RawPointer<Int> = cast untyped __cpp__("(int*)((char*){0} + {1})", buffer._getPointer(), byteOffset);
         return Native.wakeAll(ptr);
     }
 }

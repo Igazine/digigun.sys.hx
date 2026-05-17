@@ -46,7 +46,7 @@ class RawSocket {
      */
     public function readPacket(buffer:NativeBuffer):Int {
         if (!handle.isValid) return -1;
-        return Native.read(handle.value, buffer.getPointer(), buffer.size);
+        return Native.read(handle.value, buffer._getPointer(), buffer.size);
     }
 
     /**
