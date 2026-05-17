@@ -23,7 +23,7 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - **System Info**: RAM, CPU, and Disk diagnostics.
 - **File System**: Native recursive watcher, advisory locking, and memory mapping.
 - **I/O Optimization**: Zero-copy `sendFile` and `DirectIO` support.
-- **Process Control**: Affinity, priority, and resource limits.
+- **Process Control**: Forking, affinity, priority, and resource limits.
 - **Signal Handling**: Native signal trapping for POSIX and Windows.
 - **TUI/Console**: Low-level terminal control and block writing.
 - **Secure Random**: CSPRNG and UUID v4 support.
@@ -75,6 +75,7 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 
 ### Process Functions (`digigun.sys.process`) ✅
 - [x] `isRoot()` - Check for root/admin privileges ✅
+- [x] `fork()` - Native process forking with Windows emulation ✅
 - [x] `getFileResourceLimit()` - Get open file descriptor limit ✅
 - [x] `setFileResourceLimit()` - Set open file descriptor limit ✅
 - [x] `listProcesses()` - List running processes and their stats ✅
@@ -317,6 +318,23 @@ import digigun.sys.signal.Signal;
 Signal.trap(Signal.USR1, (signo) -> {
     trace('Received SIGUSR1 ($signo). Performing hot-reload...');
 });
+```
+
+### Process Forking
+Spawn a child process using native `fork()` on POSIX or optimized emulation on Windows.
+
+```haxe
+import digigun.sys.process.Process;
+
+var pid = Process.fork();
+if (pid == 0) {
+    // In child process
+    trace('I am the child (PID: ${Process.getId()})');
+    Sys.exit(0);
+} else if (pid > 0) {
+    // In parent process
+    trace('I am the parent, spawned child with PID: $pid');
+}
 ```
 
 ### Identity & Credentials
