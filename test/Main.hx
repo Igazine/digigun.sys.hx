@@ -14,6 +14,7 @@ import digigun.sys.fs.MemoryMap;
 import digigun.sys.fs.ExtendedAttributes;
 import digigun.sys.fs.Symlink;
 import digigun.sys.fs.FileDiagnostics;
+import digigun.sys.fs.Volume;
 import digigun.sys.sync.NamedSemaphore;
 import digigun.sys.sync.Futex;
 import digigun.sys.proc.ProcControl;
@@ -83,7 +84,8 @@ class Main {
         var args = Sys.args();
         if (args.indexOf("--digigun-child-fork") != -1) {
             trace('[FORK-CHILD] Process ID: ${Process.getId()}');
-            Sys.sleep(1);
+            Process.exitWithParent();
+            Sys.exit(0);
             Sys.exit(0);
         }
 
@@ -105,6 +107,7 @@ class Main {
         testWatcher();
         testSymlink();
         testFileDiagnostics();
+        testVolume();
         testExtendedAttributes();
         testDirectIO();
         testFifo();
@@ -433,6 +436,23 @@ class Main {
         if (dirType == Directory) trace("  Directory Type Verification: SUCCESS");
 
         try { if (sys.FileSystem.exists(testPath)) sys.FileSystem.deleteFile(testPath); } catch(e:Dynamic) {}
+    }
+
+    static function testVolume() {
+        trace("--- Testing Volume Metadata ---");
+        var path = Sys.systemName() == "Windows" ? "C:\\" : "/";
+        var info = Volume.getInfo(path);
+        if (info != null) {
+            trace('  Path: $path');
+            trace('  FS Type: ${info.fileSystem}');
+            trace('  Label: ${info.name}');
+            trace('  UUID: ${info.uuid}');
+            trace('  Total Space: ${info.totalSpace / (1024 * 1024 * 1024)} GB');
+            trace('  Free Space: ${info.freeSpace / (1024 * 1024 * 1024)} GB');
+            trace("  Volume Info retrieval: SUCCESS");
+        } else {
+            trace("  FAILED to retrieve volume metadata.");
+        }
     }
 
     static function testExtendedAttributes() {

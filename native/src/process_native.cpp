@@ -4,6 +4,26 @@
 #include <cstdio>
 #include <string>
 
+#ifdef __linux__
+#include <sys/prctl.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/resource.h>
+#include <dirent.h>
+#include <ctype.h>
+#endif
+
+#ifdef __APPLE__
+#include <sys/event.h>
+#include <thread>
+#include <unistd.h>
+#include <sys/resource.h>
+#include <dirent.h>
+#include <ctype.h>
+#include <libproc.h>
+#include <sys/proc_info.h>
+#endif
+
 #ifdef _WIN32
 #undef WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -13,9 +33,19 @@
 #pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "advapi32.lib")
 
+static DWORD WINAPI win32_parent_death_thread(LPVOID lpParam) {
+    HANDLE hParent = (HANDLE)lpParam;
+    WaitForSingleObject(hParent, INFINITE);
+    CloseHandle(hParent);
+    exit(0);
+    return 0;
+}
+#endif
+
 extern "C" {
 
 int process_is_root() {
+#ifdef _WIN32
     bool fIsElevated = false;
     HANDLE hToken = NULL;
     if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
@@ -27,17 +57,37 @@ int process_is_root() {
     }
     if (hToken) CloseHandle(hToken);
     return fIsElevated ? 1 : 0;
+#else
+    return geteuid() == 0 ? 1 : 0;
+#endif
 }
 
 int process_get_file_limit() {
+#ifdef _WIN32
     return _getmaxstdio();
+#else
+    struct rlimit rl;
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) return (int)rl.rlim_cur;
+    return -1;
+#endif
 }
 
 int process_set_file_limit(int limit) {
+#ifdef _WIN32
     return _setmaxstdio(limit);
+#else
+    struct rlimit rl;
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
+        rl.rlim_cur = (rlim_t)limit;
+        if (rl.rlim_cur > rl.rlim_max) rl.rlim_max = rl.rlim_cur;
+        if (setrlimit(RLIMIT_NOFILE, &rl) == 0) return (int)rl.rlim_cur;
+    }
+    return -1;
+#endif
 }
 
 NativeProcessInfo* process_list_all() {
+#ifdef _WIN32
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hSnapshot == INVALID_HANDLE_VALUE) return NULL;
     PROCESSENTRY32 pe32;
@@ -64,89 +114,8 @@ NativeProcessInfo* process_list_all() {
         ni->next = NULL; if (!head) head = ni; else tail->next = ni; tail = ni;
     } while (Process32Next(hSnapshot, &pe32));
     CloseHandle(hSnapshot); return head;
-}
-
-void process_free_list(NativeProcessInfo* list) {
-    while (list) { NativeProcessInfo* next = list->next; free(list); list = next; }
-}
-
-int process_get_id() {
-    return (int)GetCurrentProcessId();
-}
-
-int process_fork() {
-    // Windows fork emulation: re-launch the current executable
-    char szPath[MAX_PATH];
-    if (GetModuleFileNameA(NULL, szPath, MAX_PATH) == 0) return -1;
-
-    // Use a special flag to identify as child
-    std::string cmdLine = std::string(szPath) + " --digigun-child-fork";
-    
-    STARTUPINFOA si;
-    PROCESS_INFORMATION pi;
-    memset(&si, 0, sizeof(si));
-    si.cb = sizeof(si);
-    memset(&pi, 0, sizeof(pi));
-
-    if (CreateProcessA(NULL, (LPSTR)cmdLine.c_str(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
-        int childPid = (int)pi.dwProcessId;
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
-        return childPid; // Parent returns child PID
-    }
-    return -1;
-}
-
-DIGIGUN_API const char* process_echo(const char* input) { return input; }
-
-struct Point { int x; int y; };
-struct ComplexData { int id; double value; const char* name; };
-
-DIGIGUN_API void process_point(struct Point* p) {
-    if (p) { p->x += 100; p->y += 200; }
-}
-
-DIGIGUN_API void process_complex(struct ComplexData* d) {
-    if (d) { d->id *= 2; d->value += 1.5; }
-}
-
-} // extern "C"
-
-#else
-// POSIX Implementation
-#include <unistd.h>
-#include <sys/resource.h>
-#include <dirent.h>
-#include <ctype.h>
-
-#ifdef __APPLE__
-#include <libproc.h>
-#include <sys/proc_info.h>
-#endif
-
-extern "C" {
-
-int process_is_root() { return geteuid() == 0 ? 1 : 0; }
-
-int process_get_file_limit() {
-    struct rlimit rl;
-    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) return (int)rl.rlim_cur;
-    return -1;
-}
-
-int process_set_file_limit(int limit) {
-    struct rlimit rl;
-    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
-        rl.rlim_cur = (rlim_t)limit;
-        if (rl.rlim_cur > rl.rlim_max) rl.rlim_max = rl.rlim_cur;
-        if (setrlimit(RLIMIT_NOFILE, &rl) == 0) return (int)rl.rlim_cur;
-    }
-    return -1;
-}
-
-NativeProcessInfo* process_list_all() {
+#elif defined(__APPLE__)
     NativeProcessInfo* head = NULL; NativeProcessInfo* tail = NULL;
-#ifdef __APPLE__
     int buffer_size = proc_listpids(PROC_ALL_PIDS, 0, NULL, 0);
     if (buffer_size <= 0) return NULL;
     pid_t* pids = (pid_t*)malloc(buffer_size);
@@ -171,7 +140,9 @@ NativeProcessInfo* process_list_all() {
         ni->next = NULL; if (!head) head = ni; else tail->next = ni; tail = ni;
     }
     free(pids);
+    return head;
 #else
+    NativeProcessInfo* head = NULL; NativeProcessInfo* tail = NULL;
     DIR* dir = opendir("/proc"); if (!dir) return NULL;
     struct dirent* entry; long page_size = sysconf(_SC_PAGESIZE);
     while ((entry = readdir(dir)) != NULL) {
@@ -187,7 +158,7 @@ NativeProcessInfo* process_list_all() {
         if (fstat) {
             if (fgets(line, sizeof(line), fstat)) {
                 int dummy_pid; char dummy_comm[256]; char dummy_state; int ppid;
-                if (sscanf(line, "%d %s %c %d", &dummy_pid, dummy_comm, &dummy_state, &ppid) == 4) {
+                if (sscanf(line, "%d %s %c %d", &dummy_pid, dummy_comm, &dummy_state, &ppid) >= 4) {
                     ni->ppid = ppid;
                 }
             }
@@ -215,17 +186,91 @@ NativeProcessInfo* process_list_all() {
         ni->next = NULL; if (!head) head = ni; else tail->next = ni; tail = ni;
     }
     closedir(dir);
-#endif
     return head;
+#endif
 }
 
 void process_free_list(NativeProcessInfo* list) {
     while (list) { NativeProcessInfo* next = list->next; free(list); list = next; }
 }
 
-int process_get_id() { return (int)getpid(); }
+int process_get_id() {
+#ifdef _WIN32
+    return (int)GetCurrentProcessId();
+#else
+    return (int)getpid();
+#endif
+}
 
-int process_fork() { return (int)fork(); }
+int process_fork() {
+#ifdef _WIN32
+    // Windows fork emulation: re-launch the current executable
+    char szPath[MAX_PATH];
+    if (GetModuleFileNameA(NULL, szPath, MAX_PATH) == 0) return -1;
+
+    // Use a special flag to identify as child
+    std::string cmdLine = std::string(szPath) + " --digigun-child-fork";
+    
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    memset(&pi, 0, sizeof(pi));
+
+    if (CreateProcessA(NULL, (LPSTR)cmdLine.c_str(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        int childPid = (int)pi.dwProcessId;
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        return childPid; // Parent returns child PID
+    }
+    return -1;
+#else
+    return (int)fork();
+#endif
+}
+
+void process_exit_with_parent() {
+#ifdef _WIN32
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnapshot == INVALID_HANDLE_VALUE) return;
+
+    DWORD ppid = 0;
+    DWORD currentPid = GetCurrentProcessId();
+    PROCESSENTRY32 pe32;
+    pe32.dwSize = sizeof(PROCESSENTRY32);
+    if (Process32First(hSnapshot, &pe32)) {
+        do {
+            if (pe32.th32ProcessID == currentPid) {
+                ppid = pe32.th32ParentProcessID;
+                break;
+            }
+        } while (Process32Next(hSnapshot, &pe32));
+    }
+    CloseHandle(hSnapshot);
+
+    if (ppid > 0) {
+        HANDLE hParent = OpenProcess(SYNCHRONIZE, FALSE, ppid);
+        if (hParent) {
+            CreateThread(NULL, 0, win32_parent_death_thread, hParent, 0, NULL);
+        }
+    }
+#elif defined(__linux__)
+    prctl(PR_SET_PDEATHSIG, SIGKILL);
+#elif defined(__APPLE__)
+    int ppid = getppid();
+    if (ppid > 1) {
+        std::thread([ppid]() {
+            int kq = kqueue();
+            struct kevent ke;
+            EV_SET(&ke, ppid, EVFILT_PROC, EV_ADD, NOTE_EXIT, 0, NULL);
+            kevent(kq, &ke, 1, NULL, 0, NULL);
+            struct kevent event;
+            kevent(kq, NULL, 0, &event, 1, NULL);
+            exit(0);
+        }).detach();
+    }
+#endif
+}
 
 DIGIGUN_API const char* process_echo(const char* input) { return input; }
 
@@ -241,4 +286,3 @@ DIGIGUN_API void process_complex(struct ComplexData* d) {
 }
 
 } // extern "C"
-#endif

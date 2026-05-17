@@ -144,4 +144,14 @@ class Process {
         return -1;
         #end
     }
+
+    /**
+     * Ensures that the current process terminates if its parent process dies.
+     * Useful for worker/child processes to avoid becoming zombies.
+     */
+    public static function exitWithParent():Void {
+        #if cpp
+        Native.exit_with_parent();
+        #end
+    }
 }

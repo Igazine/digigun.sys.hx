@@ -56,6 +56,31 @@ void info_get_disk(const char* path, double* total, double* free, double* avail)
     }
 }
 
+int info_get_volume_info(const char* path, void* out_ptr) {
+    struct NativeVolumeInfo* out = (struct NativeVolumeInfo*)out_ptr;
+    char volumeName[MAX_PATH + 1];
+    char fileSystemName[MAX_PATH + 1];
+    DWORD serialNumber = 0;
+    DWORD maxComponentLen = 0;
+    DWORD fileSystemFlags = 0;
+
+    if (GetVolumeInformationA(path, volumeName, sizeof(volumeName), &serialNumber, &maxComponentLen, &fileSystemFlags, fileSystemName, sizeof(fileSystemName))) {
+        strncpy(out->name, volumeName, sizeof(out->name));
+        strncpy(out->file_system, fileSystemName, sizeof(out->file_system));
+        snprintf(out->uuid, sizeof(out->uuid), "%08X", (unsigned int)serialNumber);
+
+        ULARGE_INTEGER free_bytes, total_bytes, total_free_bytes;
+        if (GetDiskFreeSpaceExA(path, &free_bytes, &total_bytes, &total_free_bytes)) {
+            out->total_space = total_bytes.QuadPart;
+            out->free_space = total_free_bytes.QuadPart;
+        } else {
+            out->total_space = out->free_space = -1;
+        }
+        return 0;
+    }
+    return -1;
+}
+
 } // extern "C"
 
 #else
@@ -67,6 +92,7 @@ void info_get_disk(const char* path, double* total, double* free, double* avail)
 #include <mach/mach.h>
 #include <mach/mach_host.h>
 #include <sys/sysctl.h>
+#include <sys/mount.h>
 #else
 #include <sys/sysinfo.h>
 #endif
@@ -144,6 +170,41 @@ void info_get_disk(const char* path, double* total, double* free, double* avail)
     } else {
         *total = *free = *avail = -1.0;
     }
+}
+
+int info_get_volume_info(const char* path, void* out_ptr) {
+    struct NativeVolumeInfo* out = (struct NativeVolumeInfo*)out_ptr;
+    struct statvfs vfs;
+    if (statvfs(path, &vfs) != 0) return -1;
+
+    out->total_space = (long long)vfs.f_blocks * vfs.f_frsize;
+    out->free_space = (long long)vfs.f_bavail * vfs.f_frsize;
+
+    // Detect FS type
+#ifdef __APPLE__
+    struct statfs sfs;
+    if (statfs(path, &sfs) == 0) {
+        strncpy(out->file_system, sfs.f_fstypename, sizeof(out->file_system));
+    } else {
+        strncpy(out->file_system, "unknown", sizeof(out->file_system));
+    }
+#else
+    // Linux magic numbers
+    switch(vfs.f_type) {
+        case 0xEF53: strncpy(out->file_system, "ext4/ext3/ext2", sizeof(out->file_system)); break;
+        case 0x4D44: strncpy(out->file_system, "msdos", sizeof(out->file_system)); break;
+        case 0x6969: strncpy(out->file_system, "nfs", sizeof(out->file_system)); break;
+        case 0x9123683E: strncpy(out->file_system, "btrfs", sizeof(out->file_system)); break;
+        case 0x517B: strncpy(out->file_system, "smb", sizeof(out->file_system)); break;
+        default: snprintf(out->file_system, sizeof(out->file_system), "type:0x%lx", (unsigned long)vfs.f_type); break;
+    }
+#endif
+
+    // UUID and Name are hard to get unprivileged on POSIX
+    strncpy(out->name, "N/A", sizeof(out->name));
+    strncpy(out->uuid, "N/A", sizeof(out->uuid));
+
+    return 0;
 }
 
 } // extern "C"
