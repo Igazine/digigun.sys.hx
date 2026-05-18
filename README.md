@@ -2,6 +2,10 @@
 
 Zero-dependency system extension library for Haxe (CPP target) to extend Haxe with system functions that are not available in the standard library.
 
+## Documentation
+
+[API Reference](https://igazine.github.io/digigun.sys.hx/)
+
 ## Table of Contents
 
 - [Features](#features)
