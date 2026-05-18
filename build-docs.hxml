@@ -8,4 +8,4 @@
 --dce no
 --cpp bin/docs
 --debug
---cmd haxelib run dox -i docs -o docs --title digigun.sys.hx --toplevel-package digigun.sys
+--cmd haxelib run dox -i docs -o docs --title "digigun.sys.hx - API Documentation" --toplevel-package digigun.sys -D website "https://igazine.github.io/digigun.sys.hx/"
