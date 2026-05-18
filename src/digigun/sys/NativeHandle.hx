@@ -7,7 +7,6 @@ import haxe.Int64;
  * Uses Int64 to represent the handle value, ensuring stability
  * across all hxcpp platforms and avoiding size_t/float precision issues.
  */
-@:noDoc
 #if cpp
 class NativeHandle {
     public var value(default, null):Int64;
@@ -51,6 +50,7 @@ class NativeHandle {
      * Internal helper to convert a raw address into a typed Callable.
      * This is intended for use with Dynamic Symbol Loading.
      */
+    @:noDoc
     public function toTypedCallable<T>():T {
         return untyped __cpp__("(void*){0}", value);
     }
