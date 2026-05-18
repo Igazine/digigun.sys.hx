@@ -1,5 +1,6 @@
 package digigun.sys.dl;
 
+@:noDoc
 #if cpp
 @:include("dl_native.h")
 extern class Native {

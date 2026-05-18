@@ -58,6 +58,7 @@ enum abstract FilePermission(Int) from Int to Int {
 /**
  * 64-bit file statistics.
  */
+@:noDoc
 @:structInit
 class NativeFileStat {
     public var size:Int64;
@@ -68,6 +69,7 @@ class NativeFileStat {
     public var type:FileType;
 }
 
+@:noDoc
 @:keep
 @:include("fs_native.h")
 private extern class Native {

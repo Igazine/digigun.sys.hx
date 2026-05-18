@@ -2,6 +2,7 @@ package digigun.sys.service;
 
 import cpp.Callable;
 
+@:noDoc
 #if cpp
 @:include("service_native.h")
 extern class Native {
