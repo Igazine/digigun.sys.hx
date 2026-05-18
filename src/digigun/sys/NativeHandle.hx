@@ -57,9 +57,12 @@ class NativeHandle {
 }
 #else
 class NativeHandle {
+    public var value(default, null):haxe.Int64;
     public var isValid(get, never):Bool;
     private function get_isValid():Bool return false;
-    public static function nullHandle():NativeHandle return new NativeHandle();
-    private function new() {}
+    public static function nullHandle():NativeHandle return new NativeHandle((0 : haxe.Int64));
+    public function new(val:haxe.Int64 = null) {
+        this.value = (val != null) ? val : (0 : haxe.Int64);
+    }
 }
 #end

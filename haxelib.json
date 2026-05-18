@@ -4,9 +4,9 @@
         "license": "MIT",
         "tags": ["sys", "cpp", "fifo", "unix", "socket", "network"],
         "description": "System extension library for Haxe (CPP target)",
-        "version": "0.5.8",
+        "version": "0.5.9",
         "classPath": "src",
         "contributors": ["igazine"],
-        "releasenote": "Added Detailed Volume Metadata and Parent-Death Guard (exitWithParent) (v0.5.8).",
+        "releasenote": "Implemented Compile-time Memory Safety API via -D DIGIGUN.SYS.UNSAFE_MEMORY_ACCESS (v0.5.9).",
         "dependencies": {}
 }

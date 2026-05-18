@@ -76,7 +76,7 @@ class SharedMemory #if cpp extends Finalizable #end {
      */
     public function asBuffer():digigun.sys.io.NativeBuffer {
         if (!this.handle.isValid) return null;
-        return digigun.sys.io.NativeBuffer.fromAddress(this.address, this.size);
+        return @:privateAccess digigun.sys.io.NativeBuffer._fromAddress(this.address, this.size);
     }
 
     /**

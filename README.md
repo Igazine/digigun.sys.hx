@@ -540,6 +540,7 @@ if (sniffer != null) {
 
 Users of this library should be aware of the following security implications:
 
+- **Unsafe Memory Access:** To prevent accidental memory corruption, explicitly dangerous methods that allow dictating arbitrary memory addresses (like `NativeBuffer.fromAddress` or `MemoryProtection.protectAddress`) are guarded. To use these methods, you MUST compile with the flag `-D DIGIGUN.SYS.UNSAFE_MEMORY_ACCESS`. Library-managed memory (like `SharedMemory.asBuffer()`) remains accessible without this flag.
 - **Elevated Privileges:** Several system-level functions (e.g., setting CPU affinity, adjusting process priorities, or locking memory into RAM) may require root/administrator privileges depending on the operating system and security policies.
 - **Inter-Process Communication (IPC):** Features such as Shared Memory, Named Semaphores, and Unix Domain Sockets allow data to cross process boundaries. These must be implemented with care to prevent race conditions, unauthorized access, or memory corruption.
 - **Input Validation:** When using system functions that interact with the filesystem or network, always validate inputs to avoid injection-style vulnerabilities or accidental system instability.

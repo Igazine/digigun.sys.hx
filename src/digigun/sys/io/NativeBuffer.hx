@@ -3,9 +3,12 @@ package digigun.sys.io;
 import digigun.sys.NativeHandle;
 import haxe.io.Bytes;
 
+#if !macro
 @:keep
 @:include("io_native.h")
 private extern class Native {
+    private static function __init__():Void { digigun.sys.NativeBuild.init(); }
+
     @:native("buffer_alloc")
     static function alloc(size:Int):haxe.Int64;
 
@@ -15,6 +18,7 @@ private extern class Native {
     @:native("buffer_get_ptr")
     static function getPtr(handle:haxe.Int64):cpp.RawPointer<cpp.Void>;
 }
+#end
 
 /**
  * A raw native memory buffer outside the Haxe GC.
@@ -26,14 +30,18 @@ class NativeBuffer {
 
     public function new(size:Int) {
         this.size = size;
+        #if !macro
         this.handle = new NativeHandle(Native.alloc(size));
+        #else
+        this.handle = NativeHandle.nullHandle();
+        #end
     }
 
     /**
-     * Creates a NativeBuffer from an existing memory address.
-     * The resulting buffer does not own the memory and will not free it.
+     * Internal: Creates a NativeBuffer from an existing memory address.
      */
-    public static function fromAddress(address:haxe.Int64, size:Int):NativeBuffer {
+    @:allow(digigun.sys)
+    private static function _fromAddress(address:haxe.Int64, size:Int):NativeBuffer {
         var buf = Type.createEmptyInstance(NativeBuffer);
         buf.size = size;
         buf.handle = new NativeHandle(address);
@@ -41,9 +49,26 @@ class NativeBuffer {
         return buf;
     }
 
+    /**
+     * Creates a NativeBuffer from an existing memory address.
+     * The resulting buffer does not own the memory and will not free it.
+     */
+    #if (DIGIGUN.SYS.UNSAFE_MEMORY_ACCESS || digigun.sys.unsafe_memory_access || DIGIGUN_SYS_UNSAFE_MEMORY_ACCESS)
+    public static inline function fromAddress(address:haxe.Int64, size:Int):NativeBuffer {
+        return _fromAddress(address, size);
+    }
+    #else
+    public static macro function fromAddress(address:haxe.macro.Expr, size:haxe.macro.Expr):haxe.macro.Expr {
+        haxe.macro.Context.error("Direct memory access (fromAddress) requires compiling with -D DIGIGUN.SYS.UNSAFE_MEMORY_ACCESS", haxe.macro.Context.currentPos());
+        return macro null;
+    }
+    #end
+
     public function free():Void {
         if (handle.isValid && ownsHandle) {
+            #if !macro
             Native.free(handle.value);
+            #end
             handle = NativeHandle.nullHandle();
         }
     }
@@ -53,9 +78,14 @@ class NativeBuffer {
      */
     public var address(get, never):haxe.Int64;
     private inline function get_address():haxe.Int64 {
+        #if !macro
         return untyped __cpp__("(long long)(size_t){0}", _getPointer());
+        #else
+        return 0;
+        #end
     }
 
+    #if !macro
     @:noCompletion
     public function _getPointer():cpp.RawPointer<cpp.Void> {
         return handle.isValid ? Native.getPtr(handle.value) : null;
@@ -83,4 +113,5 @@ class NativeBuffer {
         var src:cpp.RawPointer<cpp.Void> = cast untyped __cpp__("(void*)&{0}->b[{1}]", bytes, offset);
         untyped __cpp__("memcpy({0}, {1}, {2})", _getPointer(), src, length);
     }
+    #end
 }
