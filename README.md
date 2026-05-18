@@ -27,7 +27,7 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - **System Info**: RAM, CPU, and Disk diagnostics.
 - **File System**: Native recursive watcher, advisory locking, and memory mapping.
 - **I/O Optimization**: Zero-copy `sendFile` and `DirectIO` support.
-- **Process Control**: Forking, affinity, priority, and resource limits.
+- **Process Control**: Unified API for CPU affinity, scheduler priority, process tree, forking, and resource limits.
 - **Signal Handling**: Native signal trapping for POSIX and Windows.
 - **TUI/Console**: Low-level terminal control and block writing.
 - **Secure Random**: CSPRNG and UUID v4 support.
@@ -88,33 +88,10 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [x] `setFileResourceLimit()` - Set open file descriptor limit ✅
 - [x] `listProcesses()` - List running processes and their stats ✅
 - [x] `getProcessTree()` - Hierarchical process listing ✅
-
-### File System (`digigun.sys.fs`, `digigun.sys.io`) ✅
-- [x] `Watcher` - Native event-driven recursive watching ✅
-- [x] `FileLock` - Advisory file locking (exclusive/shared) ✅
-- [x] `MemoryMap` - High-performance file memory mapping ✅
-- [x] `sendFile()` - Efficient zero-copy file-to-socket transfer ✅
-- [x] `setDirectIO()` - Bypass OS page cache (O_DIRECT / F_NOCACHE) ✅
-
-### Real-time & Signal Handling (`digigun.sys.rt`, `digigun.sys.signal`) ✅
-- [x] `mlockall()` - Lock process memory into RAM ✅
-- [x] `trap()` - Native signal handling (SIGUSR1, SIGUSR2, etc.) ✅
-
-### Secure Random & Entropy (`digigun.sys.random`) ✅
-- [x] `getBytes()` - Cryptographically secure random bytes ✅
-- [x] `uuid()` - Version 4 UUID generation ✅
-
-### Identity & Credentials (`digigun.sys.auth`) ✅
-- [x] `getCurrentUser()` - Information about the current user ✅
-- [x] `getUser(id)` - Polymorphic user lookup by UID or username ✅
-- [x] `getGroups()` - List system groups ✅
-
-### Inter-Process Synchronization (`digigun.sys.sync`) ✅
-- [x] `NamedSemaphore` - Cross-process named semaphores ✅
-
-### Process Control (`digigun.sys.proc`) ✅
 - [x] `setAffinity()` - Pin process to CPU cores ✅
 - [x] `setPriority()` - Set process scheduling priority ✅
+
+### File System (`digigun.sys.fs`, `digigun.sys.io`) ✅
 
 ### High-Resolution Timing (`digigun.sys.time`) ✅
 - [x] `stamp()` - Monotonic seconds ✅

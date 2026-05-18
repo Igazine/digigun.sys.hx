@@ -27,6 +27,18 @@ extern "C" {
     DIGIGUN_API void process_exit_with_parent();
 
     /**
+     * CPU Affinity
+     */
+    DIGIGUN_API int process_get_affinity();
+    DIGIGUN_API int process_set_affinity(int mask);
+
+    /**
+     * Scheduler Priority
+     */
+    DIGIGUN_API int process_get_priority();
+    DIGIGUN_API int process_set_priority(int priority);
+
+    /**
      * FFI Testing: Echoes a string back.
      */
     DIGIGUN_API const char* process_echo(const char* input);

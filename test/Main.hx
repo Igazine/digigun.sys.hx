@@ -6,6 +6,7 @@ import digigun.sys.network.SocketOption;
 import digigun.sys.network.PingSession;
 import digigun.sys.network.RawSocket;
 import digigun.sys.process.Process;
+import digigun.sys.process.PriorityClass;
 import digigun.sys.shm.SharedMemory;
 import digigun.sys.info.SystemInfo;
 import digigun.sys.fs.Watcher;
@@ -17,7 +18,6 @@ import digigun.sys.fs.FileDiagnostics;
 import digigun.sys.fs.Volume;
 import digigun.sys.sync.NamedSemaphore;
 import digigun.sys.sync.Futex;
-import digigun.sys.proc.ProcControl;
 import digigun.sys.time.Time;
 import digigun.sys.console.Console;
 import digigun.sys.signal.Signal;
@@ -308,8 +308,9 @@ class Main {
     }
 
     static function testProcControl() {
-        trace("--- Testing ProcControl ---");
-        ProcControl.getAffinity();
+        trace("--- Testing Process Control (Affinity/Priority) ---");
+        Process.getAffinity();
+        Process.setPriority(Normal);
     }
 
     static function testNamedSemaphore() {
@@ -482,7 +483,7 @@ class Main {
     }
 
     static function testProcess() {
-        trace("--- Testing Process ---");
+        trace("--- Testing Process (Unified) ---");
         Process.isRoot();
     }
 

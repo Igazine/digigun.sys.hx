@@ -45,6 +45,15 @@ extern class Native {
     @:native("process_exit_with_parent")
     static function exit_with_parent():Void;
 
+    @:native("process_get_affinity")
+    static function get_affinity():Int;
+
+    @:native("process_set_affinity")
+    static function set_affinity(mask:Int):Int;
+
+    @:native("process_set_priority")
+    static function set_priority(priorityClass:Int):Int;
+
     @:native("process_echo")
     static function process_echo(input:cpp.ConstCharStar):cpp.ConstCharStar;
 }

@@ -12,7 +12,6 @@
         <file name="${haxelib:digigun.sys.hx}/native/src/info_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/fs_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/sync_native.cpp"/>
-        <file name="${haxelib:digigun.sys.hx}/native/src/proc_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/time_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/console_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/signal_native.cpp"/>

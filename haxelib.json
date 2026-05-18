@@ -4,9 +4,9 @@
         "license": "MIT",
         "tags": ["sys", "cpp", "fifo", "unix", "socket", "network"],
         "description": "System extension library for Haxe (CPP target)",
-        "version": "0.5.9",
+        "version": "0.5.10",
         "classPath": "src",
         "contributors": ["igazine"],
-        "releasenote": "Implemented Compile-time Memory Safety API via -D DIGIGUN.SYS.UNSAFE_MEMORY_ACCESS (v0.5.9).",
+        "releasenote": "Unified Process API: merged digigun.sys.proc into digigun.sys.process (v0.5.10).",
         "dependencies": {}
 }
