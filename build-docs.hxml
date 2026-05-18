@@ -1,11 +1,11 @@
 -cp test
 -cp src
 -main Docs
--xml docs/xml/doc.xml
+-xml docs/doc.xml
 -D doc-gen
 -D no-compilation
 --macro include('digigun.sys', true)
 --dce no
 --cpp bin/docs
 --debug
---cmd haxelib run dox -i docs/xml -o docs/pages --title digigun.sys.hx --toplevel-package digigun.sys
+--cmd haxelib run dox -i docs -o docs --title digigun.sys.hx --toplevel-package digigun.sys
