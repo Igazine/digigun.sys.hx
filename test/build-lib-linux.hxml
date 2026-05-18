@@ -1,0 +1,8 @@
+-cp src
+-L hxcpp
+--macro include('digigun.sys')
+-cpp bin/lib/linux
+-D dll_link
+-D dll_export
+-D DIGIGUN_EXPORTS
+-D out_file=output

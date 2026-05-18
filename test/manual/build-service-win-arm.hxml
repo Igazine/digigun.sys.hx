@@ -1,0 +1,6 @@
+-cp ../src
+-main ServiceTest
+-cpp bin/service
+-D debug
+-D DIGIGUN.SYS
+-L hxcpp

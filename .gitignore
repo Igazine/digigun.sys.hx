@@ -4,7 +4,6 @@ bin/
 obj/
 cpp/
 *.hxproj
-*.hxml
 .haxelib/
 export/
 *.log

@@ -1,0 +1,10 @@
+-cp src
+-L hxcpp
+--macro include('digigun.sys')
+digigun.sys.dl.FFIInternal
+-cpp bin/lib/winarm
+-D dll_link
+-D dll_export
+-D DIGIGUN_EXPORTS
+-D out_file=output
+
