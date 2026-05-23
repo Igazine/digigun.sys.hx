@@ -4,6 +4,8 @@
 -xml docs/doc.xml
 -D doc-gen
 -D no-compilation
+-D DIGIGUN.SYS.PURE_ALLOC
+-D DIGIGUN.SYS.UNSAFE_MEMORY_ACCESS
 --macro include('digigun.sys', true)
 --dce no
 --cpp bin/docs
