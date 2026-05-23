@@ -5,6 +5,7 @@ import battlefield.TestNativeLoop;
 import battlefield.TestIPC;
 import battlefield.TestFFI;
 import battlefield.TestNetworkMetadata;
+import battlefield.TestNativeConcurrency;
 
 class Battlefield {
     public static function main() {
@@ -16,6 +17,7 @@ class Battlefield {
         runner.addCase(new TestIPC());
         runner.addCase(new TestFFI());
         runner.addCase(new TestNetworkMetadata());
+        runner.addCase(new TestNativeConcurrency());
         
         Report.create(runner);
         runner.onComplete.add(function(_) {
