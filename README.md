@@ -16,7 +16,8 @@ Zero-dependency system extension library for Haxe (CPP target) to extend Haxe wi
 - [Contributions & Bug Reports](#contributions--bug-reports)
 - [Usage Examples](#usage-examples)
 - [Safety & Security Considerations](#safety--security-considerations)
-- [License](#license)
+- [Memory Safety & GC Integration](#memory-safety--gc-integration)
+- [Development & Hardening](#development--hardening)
 
 ## Features
 
