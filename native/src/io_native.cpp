@@ -1,4 +1,5 @@
 #include "io_native.h"
+#include "digigun_alloc.h"
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -94,11 +95,17 @@ void io_close_file(long long handle) {
 }
 
 long long buffer_alloc(int size) {
-    return (long long)(size_t)malloc(size);
+    void* ptr = malloc(size);
+    if (ptr) digigun::g_active_allocations++;
+    return (long long)(size_t)ptr;
 }
 
 void buffer_free(long long handle) {
-    free((void*)(size_t)handle);
+    void* ptr = (void*)(size_t)handle;
+    if (ptr) {
+        free(ptr);
+        digigun::g_active_allocations--;
+    }
 }
 
 void* buffer_get_ptr(long long handle) {

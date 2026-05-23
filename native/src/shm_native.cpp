@@ -1,4 +1,5 @@
 #include "shm_native.h"
+#include "digigun_alloc.h"
 #include <string>
 #include <cstring>
 #include <cstdlib>
@@ -31,6 +32,7 @@ long long shm_open_segment(const char* name, int size, int writable) {
     m->handle = hMap;
     m->ptr = ptr;
     m->size = size;
+    digigun::g_active_allocations++;
     return (long long)(size_t)m;
 }
 
@@ -41,6 +43,7 @@ void shm_close_segment(long long handle) {
         UnmapViewOfFile(m->ptr);
         CloseHandle(m->handle);
         free(m);
+        digigun::g_active_allocations--;
     }
 }
 

@@ -25,7 +25,7 @@
 #include <mach/mach.h>
 #include <mach/thread_policy.h>
 #include <mach/mach_init.h>
-#else
+#elif defined(__linux__)
 #include <sched.h>
 #endif
 

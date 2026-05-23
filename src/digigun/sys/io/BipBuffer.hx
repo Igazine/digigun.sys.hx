@@ -32,6 +32,12 @@ private extern class Native {
     @:native("bip_buffer_read")
     static function read(handle:haxe.Int64, data:RawPointer<cpp.Void>, len:Int):Int;
 
+    @:native("bip_buffer_peek")
+    static function peek(handle:haxe.Int64, data:RawPointer<cpp.Void>, len:Int):Int;
+
+    @:native("bip_buffer_skip")
+    static function skip(handle:haxe.Int64, len:Int):Int;
+
     @:native("bip_buffer_available")
     static function available(handle:haxe.Int64):Int;
 
@@ -63,26 +69,37 @@ class BipPointer {
  * Bipartite circular buffer.
  * Guarantees contiguous memory blocks for read/write.
  */
-class BipBuffer implements IByteBuffer {
+class BipBuffer #if (!DIGIGUN_SYS_PURE_ALLOC && !digigun_sys_pure_alloc && !DIGIGUN.SYS.PURE_ALLOC && cpp) extends cpp.Finalizable #end implements IByteBuffer {
     public var handle(default, null):NativeHandle;
     private var _capacity:Int;
+    private var _freed:Bool = false;
 
     public function new(size:Int) {
+        #if (!DIGIGUN_SYS_PURE_ALLOC && !digigun_sys_pure_alloc && !DIGIGUN.SYS.PURE_ALLOC && cpp)
+        super();
+        #end
         _capacity = size;
         handle = new NativeHandle(Native.create(size));
     }
 
     public function destroy():Void {
-        if (handle.isValid) {
+        if (!_freed && handle.isValid) {
+            _freed = true;
             Native.destroy(handle.value);
-            handle = NativeHandle.nullHandle();
         }
     }
+
+    #if (!DIGIGUN_SYS_PURE_ALLOC && !digigun_sys_pure_alloc && !DIGIGUN.SYS.PURE_ALLOC && cpp)
+    override public function finalize():Void {
+        destroy();
+    }
+    #end
 
     /**
      * Reserves a contiguous block of memory for writing.
      */
     public function reserve(len:Int):BipPointer {
+        if (_freed) return new BipPointer(0, 0);
         var resLen:Int = 0;
         var p:RawPointer<cpp.Void> = Native.reserve(handle.value, len, untyped __cpp__("&{0}", resLen));
         var addr:haxe.Int64 = untyped __cpp__("(long long)(size_t){0}", p);
@@ -90,13 +107,14 @@ class BipBuffer implements IByteBuffer {
     }
 
     public function commit(len:Int):Void {
-        Native.commit(handle.value, len);
+        if (!_freed) Native.commit(handle.value, len);
     }
 
     /**
      * Gets a pointer to a contiguous block of memory for reading.
      */
     public function getReadPtr():BipPointer {
+        if (_freed) return new BipPointer(0, 0);
         var availLen:Int = 0;
         var p:RawPointer<cpp.Void> = Native.getReadPtr(handle.value, untyped __cpp__("&{0}", availLen));
         var addr:haxe.Int64 = untyped __cpp__("(long long)(size_t){0}", p);
@@ -104,86 +122,82 @@ class BipBuffer implements IByteBuffer {
     }
 
     public function decommit(len:Int):Void {
-        Native.decommit(handle.value, len);
+        if (!_freed) Native.decommit(handle.value, len);
     }
 
     public function writeBytes(bytes:Bytes, offset:Int, len:Int):Int {
-        if (len <= 0) return 0;
+        if (_freed || len <= 0) return 0;
         var ptr:RawPointer<cpp.Void> = cast untyped __cpp__("(void*)&{0}->b[{1}]", bytes, offset);
         return Native.write(handle.value, ptr, len);
     }
 
     public function readBytes(bytes:Bytes, offset:Int, len:Int):Int {
-        if (len <= 0) return 0;
+        if (_freed || len <= 0) return 0;
         var ptr:RawPointer<cpp.Void> = cast untyped __cpp__("(void*)&{0}->b[{1}]", bytes, offset);
         return Native.read(handle.value, ptr, len);
     }
 
     public function peekBytes(bytes:Bytes, offset:Int, len:Int):Int {
-        var availLen:Int = 0;
-        var src:RawPointer<cpp.Void> = Native.getReadPtr(handle.value, untyped __cpp__("&{0}", availLen));
-        if (src == null || availLen <= 0) return 0;
-        
-        var toPeek = Std.int(Math.min(len, availLen));
-        var dst:RawPointer<cpp.Void> = cast untyped __cpp__("(void*)&{0}->b[{1}]", bytes, offset);
-        untyped __cpp__("memcpy({0}, {1}, {2})", dst, src, toPeek);
-        return toPeek;
+        if (_freed || len <= 0) return 0;
+        var ptr:RawPointer<cpp.Void> = cast untyped __cpp__("(void*)&{0}->b[{1}]", bytes, offset);
+        return Native.peek(handle.value, ptr, len);
     }
 
     public function skip(len:Int):Int {
-        var avail = available;
-        var toSkip = Std.int(Math.min(len, avail));
-        decommit(toSkip);
-        return toSkip;
+        if (_freed) return 0;
+        return Native.skip(handle.value, len);
     }
 
     public function clear():Void {
-        Native.clear(handle.value);
+        if (!_freed) Native.clear(handle.value);
     }
 
     public var capacity(get, never):Int;
     private function get_capacity():Int return _capacity;
 
     public var available(get, never):Int;
-    private function get_available():Int return Native.available(handle.value);
+    private function get_available():Int return _freed ? 0 : Native.available(handle.value);
 
     public var freeSpace(get, never):Int;
-    private function get_freeSpace():Int return Native.freeSpace(handle.value);
+    private function get_freeSpace():Int return _freed ? 0 : Native.freeSpace(handle.value);
 
+    /**
+     * Returns a Haxe Input wrapper.
+     */
     public function asInput():haxe.io.Input {
         return new BufferInput(this);
     }
 
+    /**
+     * Returns a Haxe Output wrapper.
+     */
     public function asOutput():haxe.io.Output {
         return new BufferOutput(this);
     }
 }
 
-/**
- * Internal Haxe Input wrapper for IByteBuffer.
- */
 private class BufferInput extends haxe.io.Input {
-    private var _buf:IByteBuffer;
-    public function new(buf:IByteBuffer) { this._buf = buf; }
+    var b:BipBuffer;
+    public function new(b:BipBuffer) { this.b = b; }
     override public function readByte():Int {
-        var b = Bytes.alloc(1);
-        if (_buf.readBytes(b, 0, 1) == 1) return b.get(0);
-        throw new haxe.io.Eof();
+        var bytes = Bytes.alloc(1);
+        if (b.readBytes(bytes, 0, 1) == 0) throw new haxe.io.Eof();
+        return bytes.get(0);
     }
     override public function readBytes(s:Bytes, pos:Int, len:Int):Int {
-        return _buf.readBytes(s, pos, len);
+        return b.readBytes(s, pos, len);
     }
 }
 
 private class BufferOutput extends haxe.io.Output {
-    private var _buf:IByteBuffer;
-    public function new(buf:IByteBuffer) { this._buf = buf; }
-    override public function writeByte(b:Int):Void {
+    var b:BipBuffer;
+    public function new(b:BipBuffer) { this.b = b; }
+    override public function writeByte(v:Int):Void {
         var bytes = Bytes.alloc(1);
-        bytes.set(0, b);
-        if (_buf.writeBytes(bytes, 0, 1) != 1) throw haxe.io.Error.Custom("Buffer full");
+        bytes.set(0, v);
+        if (b.writeBytes(bytes, 0, 1) == 0) throw haxe.io.Error.Custom("Buffer full");
     }
     override public function writeBytes(s:Bytes, pos:Int, len:Int):Int {
-        return _buf.writeBytes(s, pos, len);
+        return b.writeBytes(s, pos, len);
     }
 }

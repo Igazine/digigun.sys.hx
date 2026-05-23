@@ -543,6 +543,30 @@ Users of this library should be aware of the following security implications:
 - **Inter-Process Communication (IPC):** Features such as Shared Memory, Named Semaphores, and Unix Domain Sockets allow data to cross process boundaries. These must be implemented with care to prevent race conditions, unauthorized access, or memory corruption.
 - **Input Validation:** When using system functions that interact with the filesystem or network, always validate inputs to avoid injection-style vulnerabilities or accidental system instability.
 
+## Memory Safety & GC Integration
+
+Digigun.sys.hx is designed for high-performance systems programming while maintaining Haxe's managed memory expectations.
+
+### 1. Hybrid Lifecycle Management
+By default, all native resources (`NativeBuffer`, `RingBuffer`, `SharedMemory`, etc.) integrate with the **hxcpp Immix GC**.
+- **Automatic Cleanup**: Classes extend `cpp.Finalizable`. When the Haxe wrapper is collected, the native C++ destructor is automatically invoked.
+- **Manual Control**: Every low-level class provides a `.free()` or `.destroy()` method for deterministic cleanup before the GC runs.
+
+### 2. Atomic Allocation Tracking
+The library maintains a global **Atomic Counter** (`std::atomic<int>`) in the C++ layer. Every native `malloc`, `new`, or `mmap` performed by the library increments this counter. This allows the `Battlefield` test suite to programmatically verify a **Zero-Leak State** at the end of execution.
+
+### 3. Pure Alloc Mode (Opt-out)
+For scenarios requiring absolute minimum overhead (e.g., real-time game loops), the GC integration can be compiled out:
+- Compile with `-D DIGIGUN.SYS.PURE_ALLOC` to remove `cpp.Finalizable` inheritance.
+- In this mode, the developer assumes **100% responsibility** for manual memory deallocation.
+
+## Development & Hardening
+
+The library includes the **Battlefield** suite (`test/Battlefield.hx`), a high-pressure stress test designed to detect memory corruption, race conditions, and leaks.
+- **Volume**: ~50,000 assertions per run.
+- **GC Stress**: Explicitly forces Haxe GC sweeps while thousands of native objects are in-flight.
+- **Cross-Platform**: Verified leak-free on macOS (M2), Linux (ARM64), and Windows 11 (ARM64).
+
 ---
 
 *This library, its architectural structure, test suite, and development environments were architected by a human. Google Gemini was used throughout the process for code generation and implementation under the human architect's complete control (AI-assisted development).*

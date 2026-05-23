@@ -1,0 +1,9 @@
+-cp test
+-L digigun.sys.hx
+-lib utest
+-main Battlefield
+-cpp bin/battlefield
+--debug
+-D windows
+-D HXCPP_ARM64
+-D HXCPP_M64

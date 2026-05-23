@@ -1,4 +1,5 @@
 #include "auth_native.h"
+#include "digigun_alloc.h"
 #include <string>
 #include <vector>
 #include <cstring>
@@ -27,11 +28,19 @@
 
 // Helper to duplicate strings safely for Haxe consumption
 static const char* safe_strdup(const char* str) {
-    if (!str) return (const char*)malloc(1); // Return empty string on null
+    if (!str) {
+        char* res = (char*)malloc(1);
+        if (res) {
+            res[0] = 0;
+            digigun::g_active_allocations++;
+        }
+        return res;
+    }
     size_t len = strlen(str);
     char* res = (char*)malloc(len + 1);
     if (res) {
         memcpy(res, str, len + 1);
+        digigun::g_active_allocations++;
     }
     return res;
 }
@@ -41,7 +50,12 @@ extern "C" {
 #ifdef _WIN32
 static struct NativeUserInfo* win32_fill_user(const char* name) {
     struct NativeUserInfo* info = (struct NativeUserInfo*)malloc(sizeof(struct NativeUserInfo));
-    memset(info, 0, sizeof(struct NativeUserInfo));
+    if (info) {
+        memset(info, 0, sizeof(struct NativeUserInfo));
+        digigun::g_active_allocations++;
+    } else {
+        return NULL;
+    }
     info->uid = -1;
     info->gid = -1;
     info->username = safe_strdup(name);
@@ -54,7 +68,7 @@ static struct NativeUserInfo* win32_fill_user(const char* name) {
     char fullName[256];
     ULONG nameSize = sizeof(fullName);
     if (GetUserNameExA(NameDisplay, fullName, &nameSize)) {
-        if (info->realname) free((void*)info->realname);
+        if (info->realname) { free((void*)info->realname); digigun::g_active_allocations--; }
         info->realname = safe_strdup(fullName);
     }
 
@@ -64,7 +78,7 @@ static struct NativeUserInfo* win32_fill_user(const char* name) {
         char path[MAX_PATH];
         DWORD pathSize = MAX_PATH;
         if (GetUserProfileDirectoryA(hToken, path, &pathSize)) {
-            if (info->home_dir) free((void*)info->home_dir);
+            if (info->home_dir) { free((void*)info->home_dir); digigun::g_active_allocations--; }
             info->home_dir = safe_strdup(path);
         }
         CloseHandle(hToken);
@@ -74,7 +88,7 @@ static struct NativeUserInfo* win32_fill_user(const char* name) {
     if (strlen(info->home_dir) == 0) {
         char path[MAX_PATH];
         if (GetEnvironmentVariableA("USERPROFILE", path, MAX_PATH)) {
-            if (info->home_dir) free((void*)info->home_dir);
+            if (info->home_dir) { free((void*)info->home_dir); digigun::g_active_allocations--; }
             info->home_dir = safe_strdup(path);
         }
     }
@@ -85,6 +99,11 @@ static struct NativeUserInfo* win32_fill_user(const char* name) {
 static struct NativeUserInfo* posix_fill_user(struct passwd* pw) {
     if (!pw) return NULL;
     struct NativeUserInfo* info = (struct NativeUserInfo*)malloc(sizeof(struct NativeUserInfo));
+    if (info) {
+        digigun::g_active_allocations++;
+    } else {
+        return NULL;
+    }
     info->uid = pw->pw_uid;
     info->gid = pw->pw_gid;
     info->username = safe_strdup(pw->pw_name);
@@ -125,11 +144,12 @@ struct NativeUserInfo* auth_get_current_user() {
 
 void auth_free_user(struct NativeUserInfo* user) {
     if (!user) return;
-    if (user->username) free((void*)user->username);
-    if (user->realname) free((void*)user->realname);
-    if (user->home_dir) free((void*)user->home_dir);
-    if (user->shell) free((void*)user->shell);
+    if (user->username) { free((void*)user->username); digigun::g_active_allocations--; }
+    if (user->realname) { free((void*)user->realname); digigun::g_active_allocations--; }
+    if (user->home_dir) { free((void*)user->home_dir); digigun::g_active_allocations--; }
+    if (user->shell) { free((void*)user->shell); digigun::g_active_allocations--; }
     free(user);
+    digigun::g_active_allocations--;
 }
 
 struct NativeGroupInfo* auth_get_group_by_gid(int gid) {
@@ -139,6 +159,7 @@ struct NativeGroupInfo* auth_get_group_by_gid(int gid) {
     struct group* gr = getgrgid((gid_t)gid);
     if (!gr) return NULL;
     struct NativeGroupInfo* info = (struct NativeGroupInfo*)malloc(sizeof(struct NativeGroupInfo));
+    if (info) digigun::g_active_allocations++;
     info->gid = (int)gr->gr_gid;
     info->name = safe_strdup(gr->gr_name);
     info->next = NULL;
@@ -162,6 +183,7 @@ struct NativeGroupInfo* auth_get_groups() {
             endgrent();
             return NULL;
         }
+        digigun::g_active_allocations++;
         info->gid = (int)gr->gr_gid;
         info->name = safe_strdup(gr->gr_name);
         info->next = NULL;
@@ -178,8 +200,9 @@ struct NativeGroupInfo* auth_get_groups() {
 void auth_free_groups(struct NativeGroupInfo* groups) {
     while (groups) {
         struct NativeGroupInfo* next = groups->next;
-        if (groups->name) free((void*)groups->name);
+        if (groups->name) { free((void*)groups->name); digigun::g_active_allocations--; }
         free(groups);
+        digigun::g_active_allocations--;
         groups = next;
     }
 }

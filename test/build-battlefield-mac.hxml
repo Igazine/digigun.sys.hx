@@ -1,0 +1,6 @@
+-cp test
+-L digigun.sys.hx
+-lib utest
+-main Battlefield
+-cpp bin/battlefield
+--debug

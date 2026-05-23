@@ -36,6 +36,7 @@ class SharedMemory #if cpp extends Finalizable #end {
     private var handle:NativeHandle;
     private var name:String;
     private var size:Int;
+    private var _closed:Bool = false;
 
     public function new() {
         #if cpp
@@ -52,6 +53,7 @@ class SharedMemory #if cpp extends Finalizable #end {
         this.name = name;
         this.size = size;
         this.handle = new NativeHandle(Native.open_segment(name, size, writable ? 1 : 0));
+        this._closed = false;
         return this.handle.isValid;
         #else
         return false;
@@ -64,7 +66,7 @@ class SharedMemory #if cpp extends Finalizable #end {
     public var address(get, never):haxe.Int64;
     private function get_address():haxe.Int64 {
         #if cpp
-        return this.handle.isValid ? Native.get_address(this.handle.value) : 0;
+        return (this.handle.isValid && !_closed) ? Native.get_address(this.handle.value) : 0;
         #else
         return 0;
         #end
@@ -75,7 +77,7 @@ class SharedMemory #if cpp extends Finalizable #end {
      * Note: The buffer is a view; closing SharedMemory invalidates the buffer.
      */
     public function asBuffer():digigun.sys.io.NativeBuffer {
-        if (!this.handle.isValid) return null;
+        if (!this.handle.isValid || _closed) return null;
         return @:privateAccess digigun.sys.io.NativeBuffer._fromAddress(this.address, this.size);
     }
 
@@ -84,7 +86,7 @@ class SharedMemory #if cpp extends Finalizable #end {
      */
     public function read(offset:Int, length:Int):Bytes {
         #if cpp
-        if (!this.handle.isValid) return null;
+        if (!this.handle.isValid || _closed) return null;
         var bytes = Bytes.alloc(length);
         var data:BytesData = bytes.getData();
         var ptr:cpp.RawPointer<cpp.Char> = cast cpp.NativeArray.address(data, 0);
@@ -100,7 +102,7 @@ class SharedMemory #if cpp extends Finalizable #end {
      */
     public function write(offset:Int, bytes:Bytes):Int {
         #if cpp
-        if (!this.handle.isValid) return -1;
+        if (!this.handle.isValid || _closed) return -1;
         var data:BytesData = bytes.getData();
         var ptr:cpp.RawConstPointer<cpp.Char> = cast cpp.NativeArray.address(data, 0);
         return Native.write_segment(this.handle.value, offset, ptr, bytes.length);
@@ -114,9 +116,9 @@ class SharedMemory #if cpp extends Finalizable #end {
      */
     public function close():Void {
         #if cpp
-        if (this.handle.isValid) {
+        if (this.handle.isValid && !_closed) {
+            _closed = true;
             Native.close_segment(this.handle.value);
-            this.handle = NativeHandle.nullHandle();
         }
         #end
     }

@@ -3,6 +3,7 @@ package digigun.sys.fs;
 import haxe.io.Bytes;
 import haxe.io.BytesData;
 import digigun.sys.NativeHandle;
+
 @:keep
 @:include("fs_native.h")
 private extern class Native {
@@ -28,11 +29,15 @@ private extern class Native {
 /**
  * Provides memory mapping of files for high-speed I/O.
  */
-class MemoryMap {
+class MemoryMap #if cpp extends cpp.Finalizable #end {
     private var handle:NativeHandle;
     private var size:Int;
+    private var _closed:Bool = false;
 
     private function new(h:NativeHandle, size:Int) {
+        #if cpp
+        super();
+        #end
         this.handle = h;
         this.size = size;
     }
@@ -50,8 +55,10 @@ class MemoryMap {
         if (res != 0) {
             return new MemoryMap(new NativeHandle(res), size);
         }
-        #end
         return null;
+        #else
+        return null;
+        #end
     }
 
     /**
@@ -60,65 +67,56 @@ class MemoryMap {
     public var address(get, never):haxe.Int64;
     private function get_address():haxe.Int64 {
         #if cpp
-        return this.handle.isValid ? Native.mmap_get_address(this.handle.value) : 0;
+        return (this.handle.isValid && !_closed) ? Native.mmap_get_address(this.handle.value) : 0;
         #else
         return 0;
         #end
     }
 
     /**
-     * Returns a NativeBuffer view of the memory map.
+     * Internal bridge to conversion to pointer.
      */
-    public function asBuffer():digigun.sys.io.NativeBuffer {
-        if (!this.handle.isValid) return null;
-        return @:privateAccess digigun.sys.io.NativeBuffer._fromAddress(this.address, this.size);
+    @:noCompletion
+    public function _getPointer():cpp.RawPointer<cpp.Void> {
+        return (this.handle.isValid && !_closed) ? cast untyped __cpp__("(void*)(size_t){0}", this.address) : null;
     }
 
     /**
-     * Reads bytes from the memory map.
-...
-     * @param offset Start offset within the mapping.
-     * @param length Number of bytes to read.
-     * @return Bytes instance containing the data.
+     * Reads data from the memory mapping.
      */
     public function read(offset:Int, length:Int):Bytes {
         #if cpp
-        if (!this.handle.isValid) return null;
-        var buffer = Bytes.alloc(length);
-        var data:BytesData = buffer.getData();
+        if (!this.handle.isValid || _closed) return null;
+        var bytes = Bytes.alloc(length);
+        var data:BytesData = bytes.getData();
         var ptr:cpp.RawPointer<cpp.Char> = cast cpp.NativeArray.address(data, 0);
         var res = Native.mmap_read(this.handle.value, offset, ptr, length);
-        return (res >= 0) ? buffer : null;
+        return (res > 0) ? bytes.sub(0, res) : null;
         #else
         return null;
         #end
-    }
+        }
 
-    /**
-     * Writes bytes to the memory map.
-     * @param offset Start offset within the mapping.
-     * @param bytes Data to write.
-     * @return True if successful.
-     */
-    public function write(offset:Int, bytes:Bytes):Bool {
+        /**
+        * Writes data to the memory mapping.
+        */
+        public function write(offset:Int, bytes:Bytes):Int {
         #if cpp
-        if (!this.handle.isValid) return false;
+        if (!this.handle.isValid || _closed) return -1;
         var data:BytesData = bytes.getData();
         var ptr:cpp.RawConstPointer<cpp.Char> = cast cpp.NativeArray.address(data, 0);
-        return Native.mmap_write(this.handle.value, offset, ptr, bytes.length) >= 0;
+        return Native.mmap_write(this.handle.value, offset, ptr, bytes.length);
         #else
-        return false;
+        return -1;
         #end
-    }
+        }
 
     /**
      * Flushes changes to disk.
      */
     public function flush():Void {
         #if cpp
-        if (this.handle.isValid) {
-            Native.mmap_flush(this.handle.value);
-        }
+        if (this.handle.isValid && !_closed) Native.mmap_flush(this.handle.value);
         #end
     }
 
@@ -127,10 +125,16 @@ class MemoryMap {
      */
     public function close():Void {
         #if cpp
-        if (this.handle.isValid) {
+        if (this.handle.isValid && !_closed) {
+            _closed = true;
             Native.mmap_close(this.handle.value);
-            this.handle = NativeHandle.nullHandle();
         }
         #end
     }
+
+    #if cpp
+    override public function finalize():Void {
+        close();
+    }
+    #end
 }

@@ -38,56 +38,67 @@ private extern class Native {
 /**
  * Native-backed circular RingBuffer.
  */
-class RingBuffer implements IByteBuffer {
+class RingBuffer #if (!DIGIGUN_SYS_PURE_ALLOC && !digigun_sys_pure_alloc && !DIGIGUN.SYS.PURE_ALLOC && cpp) extends cpp.Finalizable #end implements IByteBuffer {
     public var handle(default, null):NativeHandle;
     private var _capacity:Int;
+    private var _freed:Bool = false;
 
     public function new(size:Int) {
+        #if (!DIGIGUN_SYS_PURE_ALLOC && !digigun_sys_pure_alloc && !DIGIGUN.SYS.PURE_ALLOC && cpp)
+        super();
+        #end
         _capacity = size;
         handle = new NativeHandle(Native.create(size));
     }
 
     public function destroy():Void {
-        if (handle.isValid) {
+        if (!_freed && handle.isValid) {
+            _freed = true;
             Native.destroy(handle.value);
-            handle = NativeHandle.nullHandle();
         }
     }
 
+    #if (!DIGIGUN_SYS_PURE_ALLOC && !digigun_sys_pure_alloc && !DIGIGUN.SYS.PURE_ALLOC && cpp)
+    override public function finalize():Void {
+        destroy();
+    }
+    #end
+
     public function writeBytes(bytes:Bytes, offset:Int, len:Int):Int {
-        if (len <= 0) return 0;
+        if (_freed || len <= 0) return 0;
         var ptr:RawPointer<cpp.Void> = cast untyped __cpp__("(void*)&{0}->b[{1}]", bytes, offset);
         return Native.write(handle.value, ptr, len);
     }
 
     public function readBytes(bytes:Bytes, offset:Int, len:Int):Int {
-        if (len <= 0) return 0;
+        if (_freed || len <= 0) return 0;
         var ptr:RawPointer<cpp.Void> = cast untyped __cpp__("(void*)&{0}->b[{1}]", bytes, offset);
         return Native.read(handle.value, ptr, len);
     }
 
     public function peekBytes(bytes:Bytes, offset:Int, len:Int):Int {
-        if (len <= 0) return 0;
+        if (_freed || len <= 0) return 0;
         var ptr:RawPointer<cpp.Void> = cast untyped __cpp__("(void*)&{0}->b[{1}]", bytes, offset);
         return Native.peek(handle.value, ptr, len);
     }
 
     public function skip(len:Int):Int {
+        if (_freed) return 0;
         return Native.skip(handle.value, len);
     }
 
     public function clear():Void {
-        Native.clear(handle.value);
+        if (!_freed) Native.clear(handle.value);
     }
 
     public var capacity(get, never):Int;
     private function get_capacity():Int return _capacity;
 
     public var available(get, never):Int;
-    private function get_available():Int return Native.available(handle.value);
+    private function get_available():Int return _freed ? 0 : Native.available(handle.value);
 
     public var freeSpace(get, never):Int;
-    private function get_freeSpace():Int return Native.freeSpace(handle.value);
+    private function get_freeSpace():Int return _freed ? 0 : Native.freeSpace(handle.value);
 
     /**
      * Returns a Haxe Input wrapper.
@@ -104,34 +115,28 @@ class RingBuffer implements IByteBuffer {
     }
 }
 
-/**
- * Internal Haxe Input wrapper for IByteBuffer.
- */
 private class BufferInput extends haxe.io.Input {
-    private var _buf:IByteBuffer;
-    public function new(buf:IByteBuffer) { this._buf = buf; }
+    var b:RingBuffer;
+    public function new(b:RingBuffer) { this.b = b; }
     override public function readByte():Int {
-        var b = Bytes.alloc(1);
-        if (_buf.readBytes(b, 0, 1) == 1) return b.get(0);
-        throw new haxe.io.Eof();
+        var bytes = Bytes.alloc(1);
+        if (b.readBytes(bytes, 0, 1) == 0) throw new haxe.io.Eof();
+        return bytes.get(0);
     }
     override public function readBytes(s:Bytes, pos:Int, len:Int):Int {
-        return _buf.readBytes(s, pos, len);
+        return b.readBytes(s, pos, len);
     }
 }
 
-/**
- * Internal Haxe Output wrapper for IByteBuffer.
- */
 private class BufferOutput extends haxe.io.Output {
-    private var _buf:IByteBuffer;
-    public function new(buf:IByteBuffer) { this._buf = buf; }
-    override public function writeByte(b:Int):Void {
+    var b:RingBuffer;
+    public function new(b:RingBuffer) { this.b = b; }
+    override public function writeByte(v:Int):Void {
         var bytes = Bytes.alloc(1);
-        bytes.set(0, b);
-        if (_buf.writeBytes(bytes, 0, 1) != 1) throw haxe.io.Error.Custom("Buffer full");
+        bytes.set(0, v);
+        if (b.writeBytes(bytes, 0, 1) == 0) throw haxe.io.Error.Custom("Buffer full");
     }
     override public function writeBytes(s:Bytes, pos:Int, len:Int):Int {
-        return _buf.writeBytes(s, pos, len);
+        return b.writeBytes(s, pos, len);
     }
 }

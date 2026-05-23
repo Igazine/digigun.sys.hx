@@ -1,4 +1,5 @@
 #include "loop_native.h"
+#include "digigun_alloc.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -96,9 +97,11 @@ extern "C" {
 DIGIGUN_API long long loop_create() {
 #ifdef _WIN32
     HANDLE port = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+    if (port) digigun::g_active_allocations++;
     return (long long)(size_t)port;
 #else
     loop_t* loop = new loop_t();
+    if (loop) digigun::g_active_allocations++;
     loop->stop = false;
 #ifdef __APPLE__
     loop->loop_fd = kqueue();
@@ -107,6 +110,7 @@ DIGIGUN_API long long loop_create() {
 #endif
     if (pipe(loop->self_pipe) < 0) {
         delete loop;
+        digigun::g_active_allocations--;
         return 0;
     }
     
@@ -136,7 +140,10 @@ DIGIGUN_API long long loop_create() {
 
 DIGIGUN_API void loop_close(long long handle) {
 #ifdef _WIN32
-    CloseHandle((HANDLE)(size_t)handle);
+    if (handle) {
+        CloseHandle((HANDLE)(size_t)handle);
+        digigun::g_active_allocations--;
+    }
 #else
     loop_t* loop = (loop_t*)(size_t)handle;
     if (!loop) return;
@@ -144,17 +151,33 @@ DIGIGUN_API void loop_close(long long handle) {
     loop->stop = true;
     loop->cv.notify_all();
     for (auto& t : loop->workers) t.join();
+
+    // Drain and free pending requests
+    while (!loop->queue.empty()) {
+        loop_req_t* req = loop->queue.front();
+        loop->queue.pop();
+        free(req);
+        digigun::g_active_allocations--;
+    }
+    while (!loop->completed.empty()) {
+        loop_req_t* req = loop->completed.front();
+        loop->completed.pop();
+        free(req);
+        digigun::g_active_allocations--;
+    }
     
     close(loop->loop_fd);
     close(loop->self_pipe[0]);
     close(loop->self_pipe[1]);
     delete loop;
+    digigun::g_active_allocations--;
 #endif
 }
 
 DIGIGUN_API int loop_submit(long long handle, long long fd, int op, void* buffer, int len, LoopCallback callback, void* user_data) {
     loop_req_t* req = (loop_req_t*)malloc(sizeof(loop_req_t));
     if (!req) return -1;
+    digigun::g_active_allocations++;
 
     req->fd = fd;
     req->op = op;
@@ -180,6 +203,7 @@ DIGIGUN_API int loop_submit(long long handle, long long fd, int op, void* buffer
 
     if (!res && GetLastError() != ERROR_IO_PENDING) {
         free(req);
+        digigun::g_active_allocations--;
         return -(int)GetLastError();
     }
     return 0;
@@ -205,6 +229,7 @@ DIGIGUN_API int loop_submit(long long handle, long long fd, int op, void* buffer
         EV_SET(&ev, (uintptr_t)fd, filter, EV_ADD | EV_ONESHOT, 0, 0, (void*)req);
         if (kevent(loop->loop_fd, &ev, 1, NULL, 0, NULL) < 0) {
             free(req);
+            digigun::g_active_allocations--;
             return -errno;
         }
 #else
@@ -216,6 +241,7 @@ DIGIGUN_API int loop_submit(long long handle, long long fd, int op, void* buffer
                 epoll_ctl(loop->loop_fd, EPOLL_CTL_MOD, (int)fd, &ev);
             } else {
                 free(req);
+                digigun::g_active_allocations--;
                 return -errno;
             }
         }
@@ -238,6 +264,7 @@ DIGIGUN_API int loop_poll(long long handle, int timeout_ms) {
         int status = res ? 0 : (int)GetLastError();
         if (req->callback) req->callback(req->user_data, status, (int)bytes);
         free(req);
+        digigun::g_active_allocations--;
         event_count++;
     }
 
@@ -264,12 +291,10 @@ DIGIGUN_API int loop_poll(long long handle, int timeout_ms) {
         int fd = (int)events[i].ident;
 #else
         void* udata = events[i].data.ptr;
-        // Find which fd triggered (epoll doesn't give it directly in data.ptr if we used it for req)
-        // But we know udata is either NULL (self-pipe) or loop_req_t*
 #endif
 
         if (udata == NULL) {
-            // Self-pipe triggered: drain it and process completed worker tasks
+            // Self-pipe triggered
             char buf[64];
             while (read(loop->self_pipe[0], buf, sizeof(buf)) > 0);
             
@@ -279,11 +304,11 @@ DIGIGUN_API int loop_poll(long long handle, int timeout_ms) {
                 loop->completed.pop();
                 if (req->callback) req->callback(req->user_data, req->result, req->bytes);
                 free(req);
+                digigun::g_active_allocations--;
                 event_count++;
             }
         } else {
             loop_req_t* req = (loop_req_t*)udata;
-            // Direct I/O (Socket/Pipe)
             if (req->op == LOOP_OP_READ) {
                 req->bytes = read((int)req->fd, req->buffer, req->len);
                 req->result = (req->bytes < 0) ? -errno : 0;
@@ -293,6 +318,7 @@ DIGIGUN_API int loop_poll(long long handle, int timeout_ms) {
             }
             if (req->callback) req->callback(req->user_data, req->result, req->bytes);
             free(req);
+            digigun::g_active_allocations--;
             event_count++;
         }
     }

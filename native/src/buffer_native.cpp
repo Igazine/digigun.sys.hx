@@ -1,4 +1,5 @@
 #include "buffer_native.h"
+#include "digigun_alloc.h"
 #include <stdlib.h>
 #include <string.h>
 #include <algorithm>
@@ -78,7 +79,7 @@ private:
  */
 class BipBuffer {
 public:
-    BipBuffer(int size) : size(size), res_head(0), res_tail(0), res_size(0),
+    BipBuffer(int size) : size(size), res_head(0), res_size(0),
                           a_head(0), a_tail(0), b_head(0), b_tail(0), is_b(false) {
         data = (unsigned char*)malloc(size);
     }
@@ -98,26 +99,20 @@ public:
         } else {
             // Writing to Region A
             int free_space = size - a_tail;
-            if (free_space >= a_head && free_space >= len) {
+            if (free_space >= len || free_space >= a_head) {
+                // Stay in A
+                int to_res = std::min(len, free_space);
                 res_head = a_tail;
-                res_size = len;
-                *reserved_len = len;
-                return data + res_head;
-            } else if (a_head > free_space) {
-                // Better to start Region B
-                int b_space = a_head;
-                int to_res = std::min(len, b_space);
-                if (to_res <= 0) { *reserved_len = 0; return nullptr; }
-                res_head = 0;
                 res_size = to_res;
                 *reserved_len = to_res;
                 return data + res_head;
             } else {
-                // Stay in A but limited
-                if (free_space <= 0) { *reserved_len = 0; return nullptr; }
-                res_head = a_tail;
-                res_size = free_space;
-                *reserved_len = free_space;
+                // Switch to B
+                is_b = true;
+                int to_res = std::min(len, a_head);
+                res_head = 0;
+                res_size = to_res;
+                *reserved_len = to_res;
                 return data + res_head;
             }
         }
@@ -125,13 +120,11 @@ public:
 
     void commit(int len) {
         std::lock_guard<std::mutex> lock(mutex);
-        if (len <= 0) { res_size = 0; return; }
-        int to_commit = std::min(len, res_size);
-        if (res_head == a_tail && !is_b) {
-            a_tail += to_commit;
+        if (len > res_size) len = res_size;
+        if (is_b) {
+            b_tail += len;
         } else {
-            is_b = true;
-            b_tail += to_commit;
+            a_tail += len;
         }
         res_size = 0;
     }
@@ -153,40 +146,50 @@ public:
         std::lock_guard<std::mutex> lock(mutex);
         if (a_head < a_tail) {
             a_head += len;
-            if (a_head >= a_tail) {
-                // Region A empty, flip B to A
-                a_head = b_head;
-                a_tail = b_tail;
+            if (a_head == a_tail) {
+                a_head = a_tail = 0;
+                // If B exists, it now becomes A
+                if (b_tail > 0) {
+                    a_head = b_head;
+                    a_tail = b_tail;
+                    b_head = b_tail = 0;
+                    is_b = false;
+                }
+            }
+        } else if (b_head < b_tail) {
+            b_head += len;
+            if (b_head == b_tail) {
                 b_head = b_tail = 0;
                 is_b = false;
             }
-        } else {
-            b_head += len;
         }
     }
 
     int available() {
+        std::lock_guard<std::mutex> lock(mutex);
         return (a_tail - a_head) + (b_tail - b_head);
     }
 
     int free_space() {
+        std::lock_guard<std::mutex> lock(mutex);
         if (is_b) return a_head - b_tail;
-        return std::max(size - a_tail, a_head);
+        return (size - a_tail) + a_head;
     }
 
     void clear() {
         std::lock_guard<std::mutex> lock(mutex);
-        a_head = a_tail = b_head = b_tail = res_size = 0;
+        a_head = a_tail = b_head = b_tail = 0;
         is_b = false;
+        res_size = 0;
     }
 
 private:
     unsigned char* data;
     int size;
-    int res_head, res_tail, res_size;
     int a_head, a_tail;
     int b_head, b_tail;
     bool is_b;
+    int res_head, res_size;
     std::mutex mutex;
 };
 
@@ -196,8 +199,7 @@ private:
 struct NativeChunk {
     unsigned char* data;
     int size;
-    int head;
-    int tail;
+    int used;
     NativeChunk* next;
 };
 
@@ -208,45 +210,60 @@ public:
 
     int write(const void* src, int len) {
         std::lock_guard<std::mutex> lock(mutex);
-        int written = 0;
-        const unsigned char* p = (const unsigned char*)src;
+        int remaining = len;
+        const unsigned char* src_ptr = (const unsigned char*)src;
 
-        while (written < len) {
-            if (!tail_chunk || tail_chunk->tail >= tail_chunk->size) {
-                NativeChunk* chunk = (NativeChunk*)malloc(sizeof(NativeChunk));
-                chunk->data = (unsigned char*)malloc(chunk_size);
-                chunk->size = chunk_size;
-                chunk->head = chunk->tail = 0;
-                chunk->next = nullptr;
-                if (!head_chunk) head_chunk = chunk;
-                if (tail_chunk) tail_chunk->next = chunk;
-                tail_chunk = chunk;
+        while (remaining > 0) {
+            if (!tail_chunk || tail_chunk->used == tail_chunk->size) {
+                NativeChunk* new_chunk = (NativeChunk*)malloc(sizeof(NativeChunk));
+                new_chunk->data = (unsigned char*)malloc(chunk_size);
+                new_chunk->size = chunk_size;
+                new_chunk->used = 0;
+                new_chunk->next = nullptr;
+                if (!head_chunk) head_chunk = new_chunk;
+                if (tail_chunk) tail_chunk->next = new_chunk;
+                tail_chunk = new_chunk;
             }
 
-            int to_copy = std::min(len - written, tail_chunk->size - tail_chunk->tail);
-            memcpy(tail_chunk->data + tail_chunk->tail, p + written, to_copy);
-            tail_chunk->tail += to_copy;
-            written += to_copy;
+            int space = tail_chunk->size - tail_chunk->used;
+            int to_write = std::min(remaining, space);
+            memcpy(tail_chunk->data + tail_chunk->used, src_ptr, to_write);
+            tail_chunk->used += to_write;
+            src_ptr += to_write;
+            remaining -= to_write;
+            total_available += to_write;
         }
-        total_available += written;
-        return written;
+        return len;
     }
 
     int read(void* dest, int len, bool peek) {
         std::lock_guard<std::mutex> lock(mutex);
-        int read_total = 0;
-        unsigned char* d = (unsigned char*)dest;
-        NativeChunk* current = head_chunk;
+        int to_read = std::min(len, total_available);
+        if (to_read <= 0) return 0;
 
-        while (current && read_total < len) {
-            int to_copy = std::min(len - read_total, current->tail - current->head);
-            if (dest) memcpy(d + read_total, current->data + current->head, to_copy);
-            read_total += to_copy;
-            
+        int remaining = to_read;
+        unsigned char* dest_ptr = (unsigned char*)dest;
+        NativeChunk* current = head_chunk;
+        int read_total = 0;
+
+        while (remaining > 0 && current) {
+            int available = current->used;
+            int taking = std::min(remaining, available);
+            if (dest_ptr) {
+                memcpy(dest_ptr, current->data, taking);
+                dest_ptr += taking;
+            }
+            read_total += taking;
+            remaining -= taking;
+
             if (!peek) {
-                current->head += to_copy;
-                total_available -= to_copy;
-                if (current->head >= current->tail) {
+                current->used -= taking;
+                total_available -= taking;
+                if (current->used > 0) {
+                    memmove(current->data, current->data + taking, current->used);
+                }
+
+                if (current->used == 0) {
                     NativeChunk* next = current->next;
                     free(current->data);
                     free(current);
@@ -289,8 +306,18 @@ private:
 extern "C" {
 
 /** RingBuffer Exports */
-long long ring_buffer_create(int size) { return (long long)(size_t)new RingBuffer(size); }
-void ring_buffer_destroy(long long handle) { delete (RingBuffer*)(size_t)handle; }
+long long ring_buffer_create(int size) {
+    RingBuffer* rb = new RingBuffer(size);
+    if (rb) digigun::g_active_allocations++;
+    return (long long)(size_t)rb;
+}
+void ring_buffer_destroy(long long handle) {
+    RingBuffer* rb = (RingBuffer*)(size_t)handle;
+    if (rb) {
+        delete rb;
+        digigun::g_active_allocations--;
+    }
+}
 int ring_buffer_write(long long handle, const void* data, int len) { return ((RingBuffer*)(size_t)handle)->write(data, len); }
 int ring_buffer_read(long long handle, void* data, int len) { return ((RingBuffer*)(size_t)handle)->read(data, len, false); }
 int ring_buffer_peek(long long handle, void* data, int len) { return ((RingBuffer*)(size_t)handle)->read(data, len, true); }
@@ -300,8 +327,18 @@ int ring_buffer_free_space(long long handle) { return ((RingBuffer*)(size_t)hand
 void ring_buffer_clear(long long handle) { ((RingBuffer*)(size_t)handle)->clear(); }
 
 /** BipBuffer Exports */
-long long bip_buffer_create(int size) { return (long long)(size_t)new BipBuffer(size); }
-void bip_buffer_destroy(long long handle) { delete (BipBuffer*)(size_t)handle; }
+long long bip_buffer_create(int size) {
+    BipBuffer* bb = new BipBuffer(size);
+    if (bb) digigun::g_active_allocations++;
+    return (long long)(size_t)bb;
+}
+void bip_buffer_destroy(long long handle) {
+    BipBuffer* bb = (BipBuffer*)(size_t)handle;
+    if (bb) {
+        delete bb;
+        digigun::g_active_allocations--;
+    }
+}
 void* bip_buffer_reserve(long long handle, int len, int* reserved_len) { return ((BipBuffer*)(size_t)handle)->reserve(len, reserved_len); }
 void bip_buffer_commit(long long handle, int len) { ((BipBuffer*)(size_t)handle)->commit(len); }
 void* bip_buffer_get_read_ptr(long long handle, int* available_len) { return ((BipBuffer*)(size_t)handle)->get_read_ptr(available_len); }
@@ -327,13 +364,43 @@ int bip_buffer_read(long long handle, void* data, int len) {
     }
     return 0;
 }
+int bip_buffer_peek(long long handle, void* data, int len) {
+    int res = 0;
+    void* p = ((BipBuffer*)(size_t)handle)->get_read_ptr(&res);
+    if (p && res > 0) {
+        int to_read = std::min(len, res);
+        memcpy(data, p, to_read);
+        return to_read;
+    }
+    return 0;
+}
+int bip_buffer_skip(long long handle, int len) {
+    int res = 0;
+    void* p = ((BipBuffer*)(size_t)handle)->get_read_ptr(&res);
+    if (p && res > 0) {
+        int to_skip = std::min(len, res);
+        ((BipBuffer*)(size_t)handle)->decommit(to_skip);
+        return to_skip;
+    }
+    return 0;
+}
 int bip_buffer_available(long long handle) { return ((BipBuffer*)(size_t)handle)->available(); }
 int bip_buffer_free_space(long long handle) { return ((BipBuffer*)(size_t)handle)->free_space(); }
 void bip_buffer_clear(long long handle) { ((BipBuffer*)(size_t)handle)->clear(); }
 
 /** ChunkedBuffer Exports */
-long long chunked_buffer_create(int chunk_size) { return (long long)(size_t)new ChunkedBuffer(chunk_size); }
-void chunked_buffer_destroy(long long handle) { delete (ChunkedBuffer*)(size_t)handle; }
+long long chunked_buffer_create(int chunk_size) {
+    ChunkedBuffer* cb = new ChunkedBuffer(chunk_size);
+    if (cb) digigun::g_active_allocations++;
+    return (long long)(size_t)cb;
+}
+void chunked_buffer_destroy(long long handle) {
+    ChunkedBuffer* cb = (ChunkedBuffer*)(size_t)handle;
+    if (cb) {
+        delete cb;
+        digigun::g_active_allocations--;
+    }
+}
 int chunked_buffer_write(long long handle, const void* data, int len) { return ((ChunkedBuffer*)(size_t)handle)->write(data, len); }
 int chunked_buffer_read(long long handle, void* data, int len) { return ((ChunkedBuffer*)(size_t)handle)->read(data, len, false); }
 int chunked_buffer_peek(long long handle, void* data, int len) { return ((ChunkedBuffer*)(size_t)handle)->read(data, len, true); }

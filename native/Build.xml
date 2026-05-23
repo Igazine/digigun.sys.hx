@@ -5,6 +5,7 @@
         <compilerflag value="-I${haxelib:digigun.sys.hx}/native/include"/>
         <compilerflag value="-I${haxelib:digigun.sys.hx}/test/native"/>
         <compilerflag value="-DDIGIGUN_EXPORTS" if="DIGIGUN_EXPORTS" />
+        <file name="${haxelib:digigun.sys.hx}/native/src/digigun_alloc.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/fifo_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/network_native.cpp"/>
         <file name="${haxelib:digigun.sys.hx}/native/src/process_native.cpp"/>

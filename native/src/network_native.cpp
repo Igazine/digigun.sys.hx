@@ -1,4 +1,5 @@
 #include "network_native.h"
+#include "digigun_alloc.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -94,6 +95,13 @@ NativeIP* network_get_host_info(const char* host) {
         }
 
         NativeIP* node = (NativeIP*)malloc(sizeof(NativeIP));
+        if (node) {
+            memset(node, 0, sizeof(NativeIP));
+            digigun::g_active_allocations++;
+        } else {
+            freeaddrinfo(res);
+            return NULL;
+        }
         strncpy(node->ip, ip, 255);
         node->next = NULL;
 
@@ -110,6 +118,7 @@ void network_free_host_info(NativeIP* list) {
     while (list) {
         NativeIP* next = list->next;
         free(list);
+        digigun::g_active_allocations--;
         list = next;
     }
 }
@@ -129,7 +138,13 @@ NativeInterface* network_get_interfaces() {
         if (ifa->ifa_addr == NULL) continue;
 
         NativeInterface* node = (NativeInterface*)malloc(sizeof(NativeInterface));
-        memset(node, 0, sizeof(NativeInterface));
+        if (node) {
+            memset(node, 0, sizeof(NativeInterface));
+            digigun::g_active_allocations++;
+        } else {
+            freeifaddrs(ifaddr);
+            return head;
+        }
         strncpy(node->name, ifa->ifa_name, 255);
         node->flags = ifa->ifa_flags;
 
@@ -163,6 +178,7 @@ void network_free_interfaces(NativeInterface* list) {
     while (list) {
         NativeInterface* next = list->next;
         free(list);
+        digigun::g_active_allocations--;
         list = next;
     }
 }
@@ -185,6 +201,7 @@ void network_free_arp_table(NativeArpEntry* list) {
     while (list) {
         NativeArpEntry* next = list->next;
         free(list);
+        digigun::g_active_allocations--;
         list = next;
     }
 }
@@ -201,10 +218,6 @@ int network_bind_to_interface(int socket_fd, const char* interface_name) {
 #endif
 }
 
-int network_set_socket_opt(int socket_fd, int level, int option, const void* val, int len) {
-    return setsockopt(socket_fd, level, option, (const char*)val, len);
-}
-
 int network_get_constant(const char* name) {
     if (strcmp(name, "SOL_SOCKET") == 0) return SOL_SOCKET;
 #ifdef SO_TIMESTAMP
@@ -218,6 +231,7 @@ int network_get_constant(const char* name) {
 
 long long ping_session_open() {
     PingSession* session = new PingSession();
+    if (session) digigun::g_active_allocations++;
     session->socket_fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
     
     std::lock_guard<std::mutex> lock(g_ping_sessions_mtx);
@@ -258,12 +272,14 @@ void ping_session_close(long long handle) {
 #endif
         }
         delete session;
+        digigun::g_active_allocations--;
         g_ping_sessions.erase(handle);
     }
 }
 
 long long network_raw_sniffer_open(const char* interface_name, int promiscuous) {
     RawSniffer* sniffer = new RawSniffer();
+    if (sniffer) digigun::g_active_allocations++;
     sniffer->buf_len = 65536;
 
 #ifdef __APPLE__
@@ -276,7 +292,7 @@ long long network_raw_sniffer_open(const char* interface_name, int promiscuous) 
         if (sniffer->fd != -1) break;
         if (errno != EBUSY) break;
     }
-    if (sniffer->fd == -1) { delete sniffer; return 0; }
+    if (sniffer->fd == -1) { delete sniffer; digigun::g_active_allocations--; return 0; }
 
     // Set buffer length
     ioctl(sniffer->fd, BIOCSBLEN, &sniffer->buf_len);
@@ -284,7 +300,7 @@ long long network_raw_sniffer_open(const char* interface_name, int promiscuous) 
     // Bind to interface
     struct ifreq ifr;
     strncpy(ifr.ifr_name, interface_name, IFNAMSIZ);
-    if (ioctl(sniffer->fd, BIOCSETIF, &ifr) == -1) { close(sniffer->fd); delete sniffer; return 0; }
+    if (ioctl(sniffer->fd, BIOCSETIF, &ifr) == -1) { close(sniffer->fd); delete sniffer; digigun::g_active_allocations--; return 0; }
 
     // Immediate mode (don't buffer)
     unsigned int enable = 1;
@@ -295,7 +311,7 @@ long long network_raw_sniffer_open(const char* interface_name, int promiscuous) 
 #elif defined(_WIN32)
     // Windows: SIO_RCVALL
     sniffer->sock = socket(AF_INET, SOCK_RAW, IPPROTO_IP);
-    if (sniffer->sock == INVALID_SOCKET) { delete sniffer; return 0; }
+    if (sniffer->sock == INVALID_SOCKET) { delete sniffer; digigun::g_active_allocations--; return 0; }
 
     sockaddr_in local;
     local.sin_family = AF_INET;
@@ -303,24 +319,24 @@ long long network_raw_sniffer_open(const char* interface_name, int promiscuous) 
     local.sin_port = htons(0);
 
     if (bind(sniffer->sock, (sockaddr*)&local, sizeof(local)) == SOCKET_ERROR) {
-        closesocket(sniffer->sock); delete sniffer; return 0;
+        closesocket(sniffer->sock); delete sniffer; digigun::g_active_allocations--; return 0;
     }
 
     int optval = promiscuous ? RCVALL_ON : RCVALL_OFF;
     DWORD dwBytesRet = 0;
     if (WSAIoctl(sniffer->sock, SIO_RCVALL, &optval, sizeof(optval), NULL, 0, &dwBytesRet, NULL, NULL) == SOCKET_ERROR) {
-        closesocket(sniffer->sock); delete sniffer; return 0;
+        closesocket(sniffer->sock); delete sniffer; digigun::g_active_allocations--; return 0;
     }
     sniffer->fd = (int)sniffer->sock;
 
 #else
     // Linux: AF_PACKET
     sniffer->fd = socket(AF_PACKET, SOCK_RAW, htons(0x0003)); // ETH_P_ALL = 0x0003
-    if (sniffer->fd == -1) { delete sniffer; return 0; }
+    if (sniffer->fd == -1) { delete sniffer; digigun::g_active_allocations--; return 0; }
 
     struct ifreq ifr;
     strncpy(ifr.ifr_name, interface_name, IFNAMSIZ);
-    if (ioctl(sniffer->fd, SIOCGIFINDEX, &ifr) == -1) { close(sniffer->fd); delete sniffer; return 0; }
+    if (ioctl(sniffer->fd, SIOCGIFINDEX, &ifr) == -1) { close(sniffer->fd); delete sniffer; digigun::g_active_allocations--; return 0; }
 
     struct sockaddr_ll sll;
     memset(&sll, 0, sizeof(sll));
@@ -328,7 +344,7 @@ long long network_raw_sniffer_open(const char* interface_name, int promiscuous) 
     sll.sll_ifindex = ifr.ifr_ifindex;
     sll.sll_protocol = htons(0x0003);
 
-    if (bind(sniffer->fd, (struct sockaddr*)&sll, sizeof(sll)) == -1) { close(sniffer->fd); delete sniffer; return 0; }
+    if (bind(sniffer->fd, (struct sockaddr*)&sll, sizeof(sll)) == -1) { close(sniffer->fd); delete sniffer; digigun::g_active_allocations--; return 0; }
 
     if (promiscuous) {
         struct packet_mreq mr;
@@ -376,6 +392,7 @@ void network_raw_sniffer_close(long long handle) {
         close(sniffer->fd);
 #endif
         delete sniffer;
+        digigun::g_active_allocations--;
         g_sniffers.erase(handle);
     }
 }

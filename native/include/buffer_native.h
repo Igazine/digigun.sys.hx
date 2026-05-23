@@ -35,6 +35,8 @@ extern "C" {
     // Standard high-level API
     DIGIGUN_API int       bip_buffer_write(long long handle, const void* data, int len);
     DIGIGUN_API int       bip_buffer_read(long long handle, void* data, int len);
+    DIGIGUN_API int       bip_buffer_peek(long long handle, void* data, int len);
+    DIGIGUN_API int       bip_buffer_skip(long long handle, int len);
     DIGIGUN_API int       bip_buffer_available(long long handle);
     DIGIGUN_API int       bip_buffer_free_space(long long handle);
     DIGIGUN_API void      bip_buffer_clear(long long handle);
