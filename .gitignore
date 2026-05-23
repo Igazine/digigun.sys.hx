@@ -12,6 +12,7 @@ export/
 .gemini/
 export_classes.info
 GEMINI.md
+resume.sh
 
 *.code-workspace
 docs/doc.xml
