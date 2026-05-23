@@ -1,12 +1,12 @@
 {
         "name": "digigun.sys.hx",
-        "url": "https://github.com/igazine/digigun.sys.hx",
+        "url": "https://github.com/Igazine/digigun.sys.hx",
         "license": "MIT",
-        "tags": ["sys", "cpp", "fifo", "unix", "socket", "network"],
+        "tags": ["sys", "cpp", "systems", "memory-safe", "async", "ipc", "performance", "cross-platform"],
         "description": "System extension library for Haxe (CPP target)",
-        "version": "0.5.10",
+        "version": "1.0.0",
         "classPath": "src",
-        "contributors": ["igazine"],
-        "releasenote": "Unified Process API: merged digigun.sys.proc into digigun.sys.process (v0.5.10).",
+        "contributors": ["Igazine"],
+        "releasenote": "Official v1.0.0 Release: Hardened memory-safe (GC-integrated) and thread-safe architecture. Verified Zero-Leak status with 150,000+ assertion Battlefield stress-suite across macOS, Linux, and Windows.",
         "dependencies": {}
 }
