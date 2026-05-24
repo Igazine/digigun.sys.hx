@@ -419,47 +419,132 @@ int fs_get_xattr(const char* path, const char* name, unsigned char* buffer, int 
 #endif
 }
 
-int fs_stat(const char* path, void* out) {
-    fs_stat_t* s = (fs_stat_t*)out;
+int fs_list_xattrs(const char* path, char* buffer, int length) {
 #ifdef _WIN32
-    WIN32_FILE_ATTRIBUTE_DATA attr;
-    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &attr)) return (int)GetLastError();
+    return -1;
+#elif defined(__APPLE__)
+    return (int)listxattr(path, buffer, length, 0);
+#else
+    return (int)listxattr(path, buffer, length);
+#endif
+}
+
+int fs_remove_xattr(const char* path, const char* name) {
+#ifdef _WIN32
+    std::string ads_path = path;
+    ads_path += ":";
+    ads_path += name;
+    return DeleteFileA(ads_path.c_str()) ? 0 : -1;
+#elif defined(__APPLE__)
+    return removexattr(path, name, 0);
+#else
+    return removexattr(path, name);
+#endif
+}
+
+int fs_symlink_create(const char* target, const char* linkpath) {
+#ifdef _WIN32
+    DWORD attr = GetFileAttributesA(target);
+    DWORD flags = 0;
+    if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY)) {
+        flags |= 0x1; // SYMBOLIC_LINK_FLAG_DIRECTORY
+    }
+    // 0x2 = SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE
+    if (CreateSymbolicLinkA(linkpath, target, flags | 0x2)) return 0;
+    return (int)GetLastError();
+#else
+    if (symlink(target, linkpath) == 0) return 0;
+    return errno;
+#endif
+}
+
+int fs_symlink_read(const char* path, char* buffer, int length) {
+#ifdef _WIN32
+    HANDLE hFile = CreateFileA(path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) return -1;
+    DWORD res = GetFinalPathNameByHandleA(hFile, buffer, length, 0);
+    CloseHandle(hFile);
+    if (res == 0 || res >= (DWORD)length) return -1;
+    if (res > 4 && strncmp(buffer, "\\\\?\\", 4) == 0) {
+        memmove(buffer, buffer + 4, res - 3);
+        return (int)(res - 4);
+    }
+    return (int)res;
+#else
+    ssize_t res = readlink(path, buffer, length);
+    if (res < 0) return -1;
+    if (res < length) buffer[res] = '\0';
+    return (int)res;
+#endif
+}
+
+int fs_stat(const char* path, void* out_ptr) {
+    fs_stat_t* out = (fs_stat_t*)out_ptr;
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA data;
+    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &data)) return -1;
     
-    s->size = ((long long)attr.nFileSizeHigh << 32) | attr.nFileSizeLow;
+    LARGE_INTEGER li;
+    li.LowPart = data.nFileSizeLow;
+    li.HighPart = data.nFileSizeHigh;
+    out->size = li.QuadPart;
+
+    // Convert FILETIME to Unix timestamp (seconds)
+    auto filetimeToDouble = [](FILETIME ft) -> double {
+        ULARGE_INTEGER ull;
+        ull.LowPart = ft.dwLowDateTime;
+        ull.HighPart = ft.dwHighDateTime;
+        return (double)(ull.QuadPart - 116444736000000000ULL) / 10000000.0;
+    };
+
+    out->atime = filetimeToDouble(data.ftLastAccessTime);
+    out->mtime = filetimeToDouble(data.ftLastWriteTime);
+    out->ctime = filetimeToDouble(data.ftCreationTime);
     
-    // Simplistic time mapping
-    s->mtime = 0; 
-    
-    s->mode = 0;
-    if (attr.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) s->type = 2;
-    else if (attr.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
-        s->type = 7;
+    out->mode = 0;
+    if (data.dwFileAttributes & FILE_ATTRIBUTE_READONLY) out->mode |= 0444; // Best effort readable
+    else out->mode |= 0666; // Best effort readable/writable
+
+    if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) out->type = 2; // Directory
+    else if (data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+        // Check if it's a symlink specifically
+        HANDLE h = CreateFileA(path, 0, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, NULL);
+        if (h != INVALID_HANDLE_VALUE) {
+            BYTE buf[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
+            DWORD bytes;
+            if (DeviceIoControl(h, FSCTL_GET_REPARSE_POINT, NULL, 0, buf, sizeof(buf), &bytes, NULL)) {
+                REPARSE_GUID_DATA_BUFFER* rgdb = (REPARSE_GUID_DATA_BUFFER*)buf;
+                if (rgdb->ReparseTag == IO_REPARSE_TAG_SYMLINK) out->type = 9; // Symlink
+                else out->type = 7; // ReparseFile
+            } else out->type = 7;
+            CloseHandle(h);
+        } else out->type = 7;
     } else {
-        if (s->size == 0) s->type = 3; // Empty
-        else s->type = 6; // RegularFile
+        if (out->size == 0) out->type = 3; // Empty
+        else out->type = 6; // RegularFile
     }
     return 0;
 #else
     struct stat st;
     if (stat(path, &st) != 0) return errno;
     
-    s->size = (long long)st.st_size;
-    s->atime = (double)st.st_atime;
-    s->mtime = (double)st.st_mtime;
-    s->ctime = (double)st.st_ctime;
-    s->mode = (int)st.st_mode;
+    out->size = (long long)st.st_size;
+    out->atime = (double)st.st_atime;
+    out->mtime = (double)st.st_mtime;
+    out->ctime = (double)st.st_ctime;
+    out->mode = (int)st.st_mode;
 
     if (S_ISREG(st.st_mode)) {
-        if (st.st_size == 0) s->type = 3; // Empty
-        else s->type = 6; // RegularFile
+        if (st.st_size == 0) out->type = 3; // Empty
+        else out->type = 6; // RegularFile
     }
-    else if (S_ISDIR(st.st_mode)) s->type = 2;
-    else if (S_ISLNK(st.st_mode)) s->type = 9;
-    else if (S_ISCHR(st.st_mode)) s->type = 1;
-    else if (S_ISBLK(st.st_mode)) s->type = 0;
-    else if (S_ISFIFO(st.st_mode)) s->type = 4;
-    else if (S_ISSOCK(st.st_mode)) s->type = 8;
-    else s->type = 5; // Other
+    else if (S_ISDIR(st.st_mode)) out->type = 2;
+    else if (S_ISLNK(st.st_mode)) out->type = 9;
+    else if (S_ISCHR(st.st_mode)) out->type = 1;
+    else if (S_ISBLK(st.st_mode)) out->type = 0;
+    else if (S_ISFIFO(st.st_mode)) out->type = 4;
+    else if (S_ISSOCK(st.st_mode)) out->type = 8;
+    else out->type = 5; // Other
 
     return 0;
 #endif
