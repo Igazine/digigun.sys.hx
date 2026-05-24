@@ -13,5 +13,8 @@ extern class Native {
 
     @:native("time_nano_stamp")
     static function nano_stamp():Int64;
+
+    @:native("time_sleep_nanos")
+    static function sleep_nanos(nanos:Int64):Void;
 }
 #end

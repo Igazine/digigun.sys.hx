@@ -46,5 +46,11 @@ extern class Native {
 
     @:native("fs_remove_xattr")
     static function remove_xattr(path:String, name:String):Int;
+
+    @:native("fs_symlink_create")
+    static function symlink_create(target:String, linkpath:String):Int;
+
+    @:native("fs_symlink_read")
+    static function symlink_read(path:String, buffer:cpp.RawPointer<cpp.Char>, length:Int):Int;
 }
 #end

@@ -11,5 +11,8 @@ extern class Native {
 
     @:native("signal_get_value")
     static function get_value(name:String):Int;
+
+    @:native("signal_trap")
+    static function trap(signo:Int, callback:cpp.RawPointer<cpp.Void>):Int;
 }
 #end

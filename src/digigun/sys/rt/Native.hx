@@ -11,5 +11,8 @@ extern class Native {
 
     @:native("rt_munlockall")
     static function munlockall():Int;
+
+    @:native("rt_setup_crash_handler")
+    static function setup_crash_handler(report_path:String):Int;
 }
 #end

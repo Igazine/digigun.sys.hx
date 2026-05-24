@@ -25,5 +25,14 @@ extern class Native {
 
     @:native("sync_sem_unlink")
     static function sem_unlink(name:String):Void;
+
+    @:native("sync_futex_wait")
+    static function futex_wait(addr:cpp.RawPointer<Int>, expectedValue:Int):Int;
+
+    @:native("sync_futex_wake")
+    static function futex_wake(addr:cpp.RawPointer<Int>):Int;
+
+    @:native("sync_futex_wake_all")
+    static function futex_wake_all(addr:cpp.RawPointer<Int>):Int;
 }
 #end

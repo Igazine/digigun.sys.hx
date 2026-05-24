@@ -22,5 +22,8 @@ extern class Native {
 
     @:native("shm_unlink_segment")
     static function unlink_segment(name:String):Void;
+
+    @:native("shm_get_address")
+    static function get_address(handle:haxe.Int64):haxe.Int64;
 }
 #end

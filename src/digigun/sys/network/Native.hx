@@ -95,5 +95,14 @@ extern class Native {
 
     @:native("ping_session_close")
     static function ping_session_close(handle:haxe.Int64):Void;
+
+    @:native("network_raw_sniffer_open")
+    static function raw_sniffer_open(interface_name:String, promiscuous:Int):haxe.Int64;
+
+    @:native("network_raw_sniffer_read")
+    static function raw_sniffer_read(handle:haxe.Int64, buffer:cpp.RawPointer<cpp.Void>, length:Int):Int;
+
+    @:native("network_raw_sniffer_close")
+    static function raw_sniffer_close(handle:haxe.Int64):Void;
 }
 #end

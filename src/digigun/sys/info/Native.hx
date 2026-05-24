@@ -16,5 +16,8 @@ extern class Native {
 
     @:native("info_get_disk")
     static function get_disk(path:String, total:Pointer<Float>, free:Pointer<Float>, avail:Pointer<Float>):Void;
+
+    @:native("info_get_volume_info")
+    static function get_volume_info(path:String, out:cpp.RawPointer<cpp.Void>):Int;
 }
 #end

@@ -54,6 +54,9 @@ extern class Native {
     @:native("process_set_priority")
     static function set_priority(priorityClass:Int):Int;
 
+    @:native("process_get_priority")
+    static function get_priority():Int;
+
     @:native("process_echo")
     static function process_echo(input:cpp.ConstCharStar):cpp.ConstCharStar;
 }
