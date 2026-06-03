@@ -1,3 +1,4 @@
+#include <hxcpp.h>
 #include "process_native.h"
 #include <cstring>
 #include <cstdlib>
@@ -50,6 +51,7 @@ static DWORD WINAPI win32_parent_death_thread(LPVOID lpParam) {
 extern "C" {
 
 int process_is_root() {
+    hx::NativeAttach auto_attach;
 #ifdef _WIN32
     bool fIsElevated = false;
     HANDLE hToken = NULL;

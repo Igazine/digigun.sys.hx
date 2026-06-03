@@ -33,7 +33,7 @@ class SystemInfo {
         var total:Float = 0;
         var free:Float = 0;
         var used:Float = 0;
-        Native.get_memory(Pointer.addressOf(total), Pointer.addressOf(free), Pointer.addressOf(used));
+        Native.get_memory(untyped __cpp__("&{0}", total), untyped __cpp__("&{0}", free), untyped __cpp__("&{0}", used));
         return { total: total, free: free, used: used };
         #else
         return { total: -1, free: -1, used: -1 };
@@ -67,7 +67,7 @@ class SystemInfo {
         var total:Float = 0;
         var free:Float = 0;
         var avail:Float = 0;
-        Native.get_disk(path, Pointer.addressOf(total), Pointer.addressOf(free), Pointer.addressOf(avail));
+        Native.get_disk(path, untyped __cpp__("&{0}", total), untyped __cpp__("&{0}", free), untyped __cpp__("&{0}", avail));
         return { total: total, free: free, available: avail };
         #else
         return { total: -1, free: -1, available: -1 };
