@@ -6,12 +6,12 @@
 #include <cstdio>
 
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 extern "C" {
 
 void info_get_memory(double* total, double* free, double* used) {
-    hx::NativeAttach auto_attach;
     MEMORYSTATUSEX statex;
     statex.dwLength = sizeof(statex);
     if (GlobalMemoryStatusEx(&statex)) {
@@ -24,7 +24,6 @@ void info_get_memory(double* total, double* free, double* used) {
 }
 
 double info_get_cpu_usage() {
-    hx::NativeAttach auto_attach;
     static std::mutex usage_mtx;
     std::lock_guard<std::mutex> lock(usage_mtx);
     static FILETIME pre_idle, pre_kernel, pre_user;
@@ -52,7 +51,6 @@ double info_get_cpu_usage() {
 }
 
 void info_get_disk(const char* path, double* total, double* free, double* avail) {
-    hx::NativeAttach auto_attach;
     ULARGE_INTEGER free_bytes, total_bytes, total_free_bytes;
     if (GetDiskFreeSpaceExA(path, &free_bytes, &total_bytes, &total_free_bytes)) {
         *total = (double)total_bytes.QuadPart;
@@ -64,7 +62,6 @@ void info_get_disk(const char* path, double* total, double* free, double* avail)
 }
 
 int info_get_volume_info(const char* path, void* out_ptr) {
-    hx::NativeAttach auto_attach;
     struct NativeVolumeInfo* out = (struct NativeVolumeInfo*)out_ptr;
     char volumeName[MAX_PATH + 1];
     char fileSystemName[MAX_PATH + 1];
@@ -108,7 +105,6 @@ int info_get_volume_info(const char* path, void* out_ptr) {
 extern "C" {
 
 void info_get_memory(double* total, double* free, double* used) {
-    hx::NativeAttach auto_attach;
 #ifdef __APPLE__
     mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
     vm_statistics64_data_t vm_stats;
@@ -136,7 +132,6 @@ void info_get_memory(double* total, double* free, double* used) {
 }
 
 double info_get_cpu_usage() {
-    hx::NativeAttach auto_attach;
 #ifdef __APPLE__
     static std::mutex usage_mtx;
     std::lock_guard<std::mutex> lock(usage_mtx);
@@ -177,7 +172,6 @@ double info_get_cpu_usage() {
 }
 
 void info_get_disk(const char* path, double* total, double* free, double* avail) {
-    hx::NativeAttach auto_attach;
     struct statvfs vfs;
     if (statvfs(path, &vfs) == 0) {
         *total = (double)vfs.f_blocks * vfs.f_frsize;
@@ -189,7 +183,6 @@ void info_get_disk(const char* path, double* total, double* free, double* avail)
 }
 
 int info_get_volume_info(const char* path, void* out_ptr) {
-    hx::NativeAttach auto_attach;
     struct NativeVolumeInfo* out = (struct NativeVolumeInfo*)out_ptr;
     struct statvfs vfs;
     if (statvfs(path, &vfs) != 0) return -1;

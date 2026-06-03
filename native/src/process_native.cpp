@@ -32,6 +32,7 @@
 
 #ifdef _WIN32
 #undef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <tlhelp32.h>
 #include <psapi.h>
@@ -51,7 +52,6 @@ static DWORD WINAPI win32_parent_death_thread(LPVOID lpParam) {
 extern "C" {
 
 int process_is_root() {
-    hx::NativeAttach auto_attach;
 #ifdef _WIN32
     bool fIsElevated = false;
     HANDLE hToken = NULL;
@@ -140,7 +140,7 @@ NativeProcessInfo* process_list_all() {
         }
         if (proc_name(pids[i], ni->name, 255) <= 0) strncpy(ni->name, "Unknown", 255);
         struct proc_taskinfo task_info;
-        if (proc_pidinfo(pids[i], PROC_PIDTASKINFO, 0, &task_info, sizeof(task_info)) > 0) {
+        if (proc_pidinfo(pids[i], PROC_TASKINFO, 0, &task_info, sizeof(task_info)) > 0) {
             ni->memory_rss = (double)task_info.pti_resident_size;
             ni->memory_virtual = (double)task_info.pti_virtual_size;
         }
@@ -353,8 +353,6 @@ int process_set_priority(int priority_class) {
 }
 
 int process_get_priority() {
-    // Standard Haxe doesn't have process_get_priority yet, 
-    // but we can implement it if needed later. 
     return 0; 
 }
 
