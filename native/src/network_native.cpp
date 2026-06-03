@@ -229,6 +229,10 @@ int network_get_constant(const char* name) {
     return -1;
 }
 
+int network_set_socket_opt(int socket_fd, int level, int option, const void* val, int len) {
+    return setsockopt(socket_fd, level, option, (const char*)val, len);
+}
+
 long long ping_session_open() {
     PingSession* session = new PingSession();
     if (session) digigun::g_active_allocations++;

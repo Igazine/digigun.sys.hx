@@ -140,7 +140,7 @@ NativeProcessInfo* process_list_all() {
         }
         if (proc_name(pids[i], ni->name, 255) <= 0) strncpy(ni->name, "Unknown", 255);
         struct proc_taskinfo task_info;
-        if (proc_pidinfo(pids[i], PROC_TASKINFO, 0, &task_info, sizeof(task_info)) > 0) {
+        if (proc_pidinfo(pids[i], PROC_PIDTASKINFO, 0, &task_info, sizeof(task_info)) > 0) {
             ni->memory_rss = (double)task_info.pti_resident_size;
             ni->memory_virtual = (double)task_info.pti_virtual_size;
         }
